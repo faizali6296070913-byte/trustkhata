@@ -51,11 +51,16 @@ export default function CustomerLoginPage() {
           rejectionCount: 0,
           isRedFlagged: false,
           recentRejections: [],
+          name: null,
           createdAt: serverTimestamp(),
         });
+        window.location.href = "/customer-onboarding";
+      } else if (!snap.data().name) {
+        // প্রোফাইল আছে কিন্তু নাম দেওয়া হয়নি
+        window.location.href = "/customer-onboarding";
+      } else {
+        window.location.href = "/customer-dashboard";
       }
-
-      window.location.href = "/customer-dashboard";
     } catch (err) {
       console.error(err);
       setError("ভুল OTP, আবার চেষ্টা করুন");
