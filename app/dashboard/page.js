@@ -13,7 +13,7 @@ import {
   where,
   orderBy,
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function DashboardPage() {
   const [shopData, setShopData] = useState(null);
@@ -98,11 +98,16 @@ export default function DashboardPage() {
     return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
   };
 
-  // ভারতীয় নাম্বারের জন্য +91 বসিয়ে WhatsApp লিংক বানানো
   const buildWhatsAppLink = (rawPhone, message) => {
     let digits = rawPhone.replace(/\D/g, "");
-    if (digits.length === 10) digits = "91" + digits; // দেশের কোড না থাকলে যোগ করো
+    if (digits.length === 10) digits = "91" + digits;
     return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  };
+
+  const handleLogout = () => {
+    signOut(auth).then(() => {
+      window.location.href = "/";
+    });
   };
 
   const handleCreditRequest = async (e) => {
@@ -189,7 +194,15 @@ export default function DashboardPage() {
   if (shopData?.status === "pending_review") {
     return (
       <div style={{ padding: 20 }}>
-        <h2>{shopData.shopName}</h2>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <h2>{shopData.shopName}</h2>
+          <button
+            onClick={handleLogout}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            🚪 লগ আউট
+          </button>
+        </div>
         <p>⏳ আপনার একাউন্ট এখনো অ্যাডমিন অ্যাপ্রুভ করেনি। অনুগ্রহ করে অপেক্ষা করুন।</p>
       </div>
     );
@@ -205,7 +218,15 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>{shopData.shopName}</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2>{shopData.shopName}</h2>
+        <button
+          onClick={handleLogout}
+          style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+        >
+          🚪 লগ আউট
+        </button>
+      </div>
       <p>✅ স্ট্যাটাস: {shopData.status}</p>
 
       <h3 style={{ marginTop: 20 }}>নতুন ক্রেডিট রিকোয়েস্ট</h3>
