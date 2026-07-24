@@ -1,16 +1,51 @@
 "use client";
 import { useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizePhone } from "@/lib/phone";
 
 export default function CustomerLoginPage() {
+  const [mode, setMode] = useState("password"); // "password" | "otp"
+
+  // password login state
+  const [pwPhone, setPwPhone] = useState("");
+  const [pwPassword, setPwPassword] = useState("");
+  const [pwError, setPwError] = useState("");
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+
+  // otp login state
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
+
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    setPwError("");
+    setPwSubmitting(true);
+    try {
+      const digits = normalizePhone(pwPhone);
+      const pseudoEmail = `${digits}@halkhata.app`;
+      await signInWithEmailAndPassword(auth, pseudoEmail, pwPassword);
+      window.location.href = "/customer-dashboard";
+    } catch (err) {
+      console.error(err);
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
+        setPwError("ভুল ফোন নাম্বার বা পাসওয়ার্ড।");
+      } else if (err.code === "auth/user-not-found") {
+        setPwError("এই নাম্বারে কোনো পাসওয়ার্ড সেট করা নেই। OTP দিয়ে লগইন করুন।");
+      } else {
+        setPwError("লগইন করা যায়নি, আবার চেষ্টা করুন।");
+      }
+      setPwSubmitting(false);
+    }
+  };
 
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -71,39 +106,102 @@ export default function CustomerLoginPage() {
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
       <h2>কাস্টমার লগইন</h2>
 
-      {step === "phone" && (
-        <form onSubmit={sendOtp}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        <button
+          onClick={() => setMode("password")}
+          style={{
+            flex: 1,
+            padding: 8,
+            background: mode === "password" ? "#2563eb" : "#333",
+            color: "white",
+            border: "none",
+          }}
+        >
+          পাসওয়ার্ড দিয়ে
+        </button>
+        <button
+          onClick={() => setMode("otp")}
+          style={{
+            flex: 1,
+            padding: 8,
+            background: mode === "otp" ? "#2563eb" : "#333",
+            color: "white",
+            border: "none",
+          }}
+        >
+          OTP দিয়ে
+        </button>
+      </div>
+
+      {mode === "password" && (
+        <form onSubmit={handlePasswordLogin}>
           <input
             type="tel"
             placeholder="ফোন নাম্বার (যেমন 9876543210)"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            value={pwPhone}
+            onChange={(e) => setPwPhone(e.target.value)}
             required
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            OTP পাঠান
-          </button>
-        </form>
-      )}
-
-      {step === "otp" && (
-        <form onSubmit={verifyOtp}>
           <input
-            type="text"
-            placeholder="OTP কোড দিন"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
+            type="password"
+            placeholder="পাসওয়ার্ড"
+            value={pwPassword}
+            onChange={(e) => setPwPassword(e.target.value)}
             required
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            যাচাই করুন
+          <button type="submit" disabled={pwSubmitting} style={{ width: "100%", padding: 10 }}>
+            {pwSubmitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
           </button>
+          {pwError && <p style={{ color: "red" }}>{pwError}</p>}
+          <a
+            href="/customer-forgot-password"
+            style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 13, color: "#999" }}
+          >
+            পাসওয়ার্ড ভুলে গেছেন?
+          </a>
         </form>
       )}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {mode === "otp" && (
+        <>
+          {step === "phone" && (
+            <form onSubmit={sendOtp}>
+              <input
+                type="tel"
+                placeholder="ফোন নাম্বার (যেমন 9876543210)"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+              />
+              <button type="submit" style={{ width: "100%", padding: 10 }}>
+                OTP পাঠান
+              </button>
+            </form>
+          )}
+
+          {step === "otp" && (
+            <form onSubmit={verifyOtp}>
+              <input
+                type="text"
+                placeholder="OTP কোড দিন"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+              />
+              <button type="submit" style={{ width: "100%", padding: 10 }}>
+                যাচাই করুন
+              </button>
+            </form>
+          )}
+
+          {error && <p style={{ color: "red" }}>{error}</p>}
+        </>
+      )}
+
       <div id="recaptcha-container"></div>
     </div>
   );

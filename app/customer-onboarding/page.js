@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, EmailAuthProvider, linkWithCredential } from "firebase/auth";
 import { normalizePhone } from "@/lib/phone";
 
 export default function CustomerOnboardingPage() {
@@ -13,6 +13,8 @@ export default function CustomerOnboardingPage() {
   const [pincode, setPincode] = useState("");
   const [altPhone, setAltPhone] = useState("");
   const [occupation, setOccupation] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -30,11 +32,26 @@ export default function CustomerOnboardingPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
+
+    if (password.length < 6) {
+      setError("পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে।");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("দুটো পাসওয়ার্ড মিলছে না।");
+      return;
+    }
+
+    setSubmitting(true);
     try {
       const user = auth.currentUser;
       const digits = normalizePhone(user.phoneNumber);
+      const pseudoEmail = `${digits}@halkhata.app`;
+
+      // ফোন নাম্বারের সাথে email/password লগইন যুক্ত করা
+      const credential = EmailAuthProvider.credential(pseudoEmail, password);
+      await linkWithCredential(user, credential);
 
       await updateDoc(doc(db, "customers", digits), {
         name,
@@ -46,12 +63,17 @@ export default function CustomerOnboardingPage() {
         },
         altPhone: altPhone || null,
         occupation: occupation || null,
+        hasPassword: true,
       });
 
       window.location.href = "/customer-dashboard";
     } catch (err) {
       console.error(err);
-      setError("সেভ করা যায়নি, আবার চেষ্টা করুন।");
+      if (err.code === "auth/email-already-in-use" || err.code === "auth/credential-already-in-use") {
+        setError("এই ফোন নাম্বারের জন্য আগেই পাসওয়ার্ড সেট করা আছে।");
+      } else {
+        setError("সেভ করা যায়নি, আবার চেষ্টা করুন।");
+      }
       setSubmitting(false);
     }
   };
@@ -116,6 +138,28 @@ export default function CustomerOnboardingPage() {
           onChange={(e) => setOccupation(e.target.value)}
           style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
         />
+
+        <hr style={{ margin: "16px 0", borderColor: "#333" }} />
+        <p style={{ fontSize: 13, color: "#999", marginBottom: 8 }}>
+          একটা পাসওয়ার্ড সেট করুন, পরের বার থেকে OTP ছাড়াই লগইন করতে পারবেন
+        </p>
+        <input
+          type="password"
+          placeholder="পাসওয়ার্ড (অন্তত ৬ অক্ষর)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+        />
+        <input
+          type="password"
+          placeholder="পাসওয়ার্ড আবার লিখুন"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+        />
+
         <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
           {submitting ? "সেভ হচ্ছে..." : "সেভ করুন"}
         </button>
