@@ -8,17 +8,16 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizePhone } from "@/lib/phone";
+import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function CustomerLoginPage() {
   const [mode, setMode] = useState("password"); // "password" | "otp"
 
-  // password login state
   const [pwPhone, setPwPhone] = useState("");
   const [pwPassword, setPwPassword] = useState("");
   const [pwError, setPwError] = useState("");
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
-  // otp login state
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -36,13 +35,7 @@ export default function CustomerLoginPage() {
       window.location.href = "/customer-dashboard";
     } catch (err) {
       console.error(err);
-      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
-        setPwError("ভুল ফোন নাম্বার বা পাসওয়ার্ড।");
-      } else if (err.code === "auth/user-not-found") {
-        setPwError("এই নাম্বারে কোনো পাসওয়ার্ড সেট করা নেই। OTP দিয়ে লগইন করুন।");
-      } else {
-        setPwError("লগইন করা যায়নি, আবার চেষ্টা করুন।");
-      }
+      setPwError(getFriendlyAuthError(err));
       setPwSubmitting(false);
     }
   };
@@ -65,7 +58,8 @@ export default function CustomerLoginPage() {
       setConfirmationResult(result);
       setStep("otp");
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(getFriendlyAuthError(err));
     }
   };
 
@@ -98,7 +92,7 @@ export default function CustomerLoginPage() {
       }
     } catch (err) {
       console.error(err);
-      setError("ভুল OTP, আবার চেষ্টা করুন");
+      setError(getFriendlyAuthError(err));
     }
   };
 
@@ -154,7 +148,7 @@ export default function CustomerLoginPage() {
           <button type="submit" disabled={pwSubmitting} style={{ width: "100%", padding: 10 }}>
             {pwSubmitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
           </button>
-          {pwError && <p style={{ color: "red" }}>{pwError}</p>}
+          {pwError && <p style={{ color: "red", fontSize: 13 }}>{pwError}</p>}
           <a
             href="/customer-forgot-password"
             style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 13, color: "#999" }}
@@ -198,7 +192,7 @@ export default function CustomerLoginPage() {
             </form>
           )}
 
-          {error && <p style={{ color: "red" }}>{error}</p>}
+          {error && <p style={{ color: "red", fontSize: 13 }}>{error}</p>}
         </>
       )}
 

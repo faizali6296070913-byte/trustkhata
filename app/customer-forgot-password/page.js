@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { auth } from "@/lib/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber, updatePassword } from "firebase/auth";
-import { normalizePhone } from "@/lib/phone";
+import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function CustomerForgotPasswordPage() {
   const [phone, setPhone] = useState("");
@@ -10,7 +10,7 @@ export default function CustomerForgotPasswordPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
-  const [step, setStep] = useState("phone"); // "phone" | "otp" | "newPassword" | "done"
+  const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -32,7 +32,8 @@ export default function CustomerForgotPasswordPage() {
       setConfirmationResult(result);
       setStep("otp");
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(getFriendlyAuthError(err));
     }
   };
 
@@ -41,11 +42,10 @@ export default function CustomerForgotPasswordPage() {
     setError("");
     try {
       await confirmationResult.confirm(otp);
-      // OTP verify হয়ে গেলে এই মুহূর্তে auth.currentUser আপডেট হয়ে যায়
       setStep("newPassword");
     } catch (err) {
       console.error(err);
-      setError("ভুল OTP, আবার চেষ্টা করুন।");
+      setError(getFriendlyAuthError(err));
     }
   };
 
@@ -69,7 +69,7 @@ export default function CustomerForgotPasswordPage() {
       setStep("done");
     } catch (err) {
       console.error(err);
-      setError("পাসওয়ার্ড বদলানো যায়নি, আবার চেষ্টা করুন।");
+      setError(getFriendlyAuthError(err));
       setSubmitting(false);
     }
   };
@@ -161,7 +161,7 @@ export default function CustomerForgotPasswordPage() {
         </div>
       )}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: "red", fontSize: 13 }}>{error}</p>}
       <div id="recaptcha-container"></div>
     </div>
   );
