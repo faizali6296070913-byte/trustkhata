@@ -1,44 +1,114 @@
 "use client";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot, updateDoc, serverTimestamp, collection, query, where, orderBy } from "firebase/firestore";
+import {
+  doc,
+  onSnapshot,
+  getDoc,
+  collection,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { updateCustomerScore } from "@/lib/scoring";
+import { normalizePhone } from "@/lib/phone";
 
-export default function CustomerDashboardPage() {
+export default function DashboardPage() {
+  const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [customerData, setCustomerData] = useState(null);
+  const [uid, setUid] = useState(null);
   const [transactions, setTransactions] = useState([]);
+
+  const [phone, setPhone] = useState("");
+  const [amount, setAmount] = useState("");
+  const [itemDetails, setItemDetails] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+  const [lastLink, setLastLink] = useState(null);
+  const [lastPhone, setLastPhone] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const [customerScore, setCustomerScore] = useState(null);
+  const [customerFlagged, setCustomerFlagged] = useState(false);
+  const [customerVerified, setCustomerVerified] = useState(false);
+  const [checkingScore, setCheckingScore] = useState(false);
+  const [verifiedByMe, setVerifiedByMe] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        window.location.href = "/customer-login";
+        window.location.href = "/login";
         return;
       }
-      const digits = user.phoneNumber.replace(/\D/g, "");
-
-      const unsubCustomer = onSnapshot(doc(db, "customers", digits), (snap) => {
-        setCustomerData(snap.exists() ? snap.data() : null);
+      setUid(user.uid);
+      const unsubSnap = onSnapshot(doc(db, "shopkeepers", user.uid), (snap) => {
+        setShopData(snap.data());
         setLoading(false);
       });
-
-      const q = query(
-        collection(db, "transactions"),
-        where("customerId", "==", digits),
-        orderBy("createdAt", "desc")
-      );
-      const unsubTxns = onSnapshot(q, (snapshot) => {
-        setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-      });
-
-      return () => {
-        unsubCustomer();
-        unsubTxns();
-      };
+      return () => unsubSnap();
     });
     return () => unsubAuth();
   }, []);
+
+  useEffect(() => {
+    if (!uid) return;
+    const q = query(
+      collection(db, "transactions"),
+      where("shopId", "==", uid),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const txns = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setTransactions(txns);
+    });
+    return () => unsub();
+  }, [uid]);
+
+  useEffect(() => {
+    const digits = normalizePhone(phone);
+    if (digits.length < 10) {
+      setCustomerScore(null);
+      setCustomerFlagged(false);
+      setCustomerVerified(false);
+      return;
+    }
+    setCheckingScore(true);
+    const timer = setTimeout(async () => {
+      try {
+        const snap = await getDoc(doc(db, "customers", digits));
+        if (snap.exists()) {
+          setCustomerScore(snap.data().trustScore ?? 50);
+          setCustomerFlagged(snap.data().isRedFlagged === true);
+          setCustomerVerified(snap.data().verifiedByShopkeeper === true);
+        } else {
+          setCustomerScore(50);
+          setCustomerFlagged(false);
+          setCustomerVerified(false);
+        }
+      } catch (err) {
+        console.error(err);
+        setCustomerScore(null);
+      }
+      setCheckingScore(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [phone]);
+
+  const getScoreTier = (score) => {
+    if (score >= 70) return { label: "🟢 বিশ্বস্ত কাস্টমার", color: "green" };
+    if (score >= 40) return { label: "🟡 মাঝারি", color: "orange" };
+    return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
+  };
+
+  const buildWhatsAppLink = (rawPhone, message) => {
+    let digits = normalizePhone(rawPhone);
+    digits = "91" + digits;
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  };
 
   const handleLogout = () => {
     signOut(auth).then(() => {
@@ -46,34 +116,114 @@ export default function CustomerDashboardPage() {
     });
   };
 
-  const respond = async (txn, decision) => {
+  const handleCreditRequest = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSuccessMsg("");
     try {
-      await updateDoc(doc(db, "transactions", txn.id), {
-        status: decision,
-        [decision === "approved" ? "approvedAt" : "rejectedAt"]: serverTimestamp(),
-      });
+      const txnRef = doc(collection(db, "transactions"));
+      const token = crypto.randomUUID() + crypto.randomUUID();
+      const phoneHash = normalizePhone(phone);
+      const now = serverTimestamp();
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-      if (txn.approvalToken) {
-        await updateDoc(doc(db, "approvals", txn.approvalToken), {
-          status: decision,
-          respondedAt: serverTimestamp(),
-        }).catch(() => {});
+      await Promise.all([
+        setDoc(txnRef, {
+          shopId: uid,
+          shopName: shopData.shopName,
+          customerPhone: phone,
+          customerId: phoneHash,
+          amount: Number(amount),
+          itemDetails: itemDetails || null,
+          billPhotoURL: null,
+          status: "pending_approval",
+          approvalToken: token,
+          verifiedByShopkeeper: verifiedByMe,
+          createdAt: now,
+          approvedAt: null,
+          rejectedAt: null,
+        }),
+        setDoc(doc(db, "approvals", token), {
+          transactionId: txnRef.id,
+          shopId: uid,
+          shopName: shopData.shopName,
+          customerPhone: phone,
+          amount: Number(amount),
+          itemDetails: itemDetails || null,
+          status: "pending",
+          createdAt: now,
+          expiresAt,
+        }),
+      ]);
+
+      if (verifiedByMe) {
+        await setDoc(
+          doc(db, "customers", phoneHash),
+          { verifiedByShopkeeper: true },
+          { merge: true }
+        );
       }
 
-      await updateCustomerScore(txn.customerPhone, decision === "approved" ? "approved" : "rejected", txn.amount);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+      const link = `${appUrl}/approve/${token}`;
+
+      setLastLink(link);
+      setLastPhone(phone);
+      setSuccessMsg("রিকোয়েস্ট তৈরি হয়েছে! নিচের বাটনে চেপে WhatsApp এ পাঠান।");
+      setPhone("");
+      setAmount("");
+      setItemDetails("");
+      setCustomerScore(null);
+      setCustomerFlagged(false);
+      setCustomerVerified(false);
+      setVerifiedByMe(false);
+    } catch (err) {
+      console.error(err);
+    }
+    setSubmitting(false);
+  };
+
+  const markAsPaid = async (txnId) => {
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    try {
+      await updateDoc(doc(db, "transactions", txnId), {
+        securityPIN: pin,
+        pinGeneratedAt: serverTimestamp(),
+        status: "awaiting_pin_confirmation",
+      });
     } catch (err) {
       console.error(err);
       alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
     }
   };
 
+  const copyLink = (link, id) => {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const fullLink = `${appUrl}${link}`;
+    navigator.clipboard.writeText(fullLink).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
   if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
 
-  const getScoreTier = (score) => {
-    if (score >= 70) return { label: "🟢 বিশ্বস্ত কাস্টমার", color: "green" };
-    if (score >= 40) return { label: "🟡 মাঝারি", color: "orange" };
-    return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
-  };
+  if (shopData?.status === "pending_review") {
+    return (
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <h2>{shopData.shopName}</h2>
+          <button
+            onClick={handleLogout}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            🚪 লগ আউট
+          </button>
+        </div>
+        <p>⏳ আপনার একাউন্ট এখনো অ্যাডমিন অ্যাপ্রুভ করেনি। অনুগ্রহ করে অপেক্ষা করুন।</p>
+      </div>
+    );
+  }
 
   const statusMap = {
     pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
@@ -83,37 +233,10 @@ export default function CustomerDashboardPage() {
     paid: { color: "blue", label: "✅ পরিশোধিত" },
   };
 
-  const score = customerData?.trustScore ?? 50;
-  const tier = getScoreTier(score);
-
-  const outstandingStatuses = ["approved", "awaiting_pin_confirmation"];
-  const outstandingTxns = transactions.filter((t) => outstandingStatuses.includes(t.status));
-  const paidTxns = transactions.filter((t) => t.status === "paid");
-
-  const totalOutstanding = outstandingTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-  const totalPaid = paidTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-
-  const shopIdsWithDue = new Set(outstandingTxns.map((t) => t.shopId));
-  const allShopIds = new Set(transactions.map((t) => t.shopId));
-
-  const shopSummary = {};
-  transactions.forEach((t) => {
-    if (!shopSummary[t.shopId]) {
-      shopSummary[t.shopId] = { shopName: t.shopName, outstanding: 0, paid: 0 };
-    }
-    if (outstandingStatuses.includes(t.status)) {
-      shopSummary[t.shopId].outstanding += t.amount || 0;
-    }
-    if (t.status === "paid") {
-      shopSummary[t.shopId].paid += t.amount || 0;
-    }
-  });
-  const shopList = Object.values(shopSummary);
-
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>আমার প্রোফাইল</h2>
+        <h2>{shopData.shopName}</h2>
         <button
           onClick={handleLogout}
           style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
@@ -121,78 +244,105 @@ export default function CustomerDashboardPage() {
           🚪 লগ আউট
         </button>
       </div>
+      <p>✅ স্ট্যাটাস: {shopData.status}</p>
 
-      {customerData?.name && (
-        <p style={{ margin: "4px 0", fontSize: 16 }}>
-          👤 {customerData.name}
-          {customerData.address?.city &&
-            ` — ${customerData.address.city}, ${customerData.address.state}`}
-        </p>
+      <h3 style={{ marginTop: 20 }}>নতুন ক্রেডিট রিকোয়েস্ট</h3>
+      <form onSubmit={handleCreditRequest}>
+        <input
+          type="tel"
+          placeholder="কাস্টমারের ফোন (যেমন 9876543210)"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          required
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+        />
+
+        {checkingScore && <p style={{ fontSize: 12, color: "#999" }}>স্কোর চেক হচ্ছে...</p>}
+
+        {!checkingScore && customerScore !== null && (
+          <div style={{ marginBottom: 10 }}>
+            <p
+              style={{
+                fontSize: 13,
+                margin: 0,
+                color: getScoreTier(customerScore).color,
+                fontWeight: "bold",
+              }}
+            >
+              {getScoreTier(customerScore).label} — স্কোর: {customerScore}/100
+              {customerVerified && (
+                <span style={{ color: "#3b82f6", marginLeft: 6 }}>✅ দোকানদার-যাচাইকৃত</span>
+              )}
+            </p>
+            {customerFlagged && (
+              <p style={{ fontSize: 13, margin: 0, color: "red", fontWeight: "bold" }}>
+                ⚠️ Red Flag — এই কাস্টমার বারবার রিকোয়েস্ট রিজেক্ট করেছে
+              </p>
+            )}
+          </div>
+        )}
+
+        <input
+          type="number"
+          placeholder="টাকার পরিমাণ"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          required
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+        />
+        <textarea
+          placeholder="জিনিসের বিবরণ (ঐচ্ছিক)"
+          value={itemDetails}
+          onChange={(e) => setItemDetails(e.target.value)}
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+        />
+
+        {customerScore !== null && !customerVerified && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={verifiedByMe}
+              onChange={(e) => setVerifiedByMe(e.target.checked)}
+            />
+            আমি এই ব্যক্তিকে সরাসরি চিনি ও শনাক্ত করেছি
+          </label>
+        )}
+
+        <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
+          {submitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
+        </button>
+      </form>
+
+      {successMsg && <p style={{ color: "green" }}>{successMsg}</p>}
+
+      {lastLink && (
+        <a
+          href={buildWhatsAppLink(
+            lastPhone,
+            `আপনার একটি বাকি অনুরোধ এসেছে। অনুমোদন বা প্রত্যাখ্যান করতে এখানে ক্লিক করুন: ${lastLink}`
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "block",
+            textAlign: "center",
+            marginTop: 10,
+            padding: 10,
+            background: "#25D366",
+            color: "white",
+            fontWeight: "bold",
+            textDecoration: "none",
+          }}
+        >
+          📱 WhatsApp এ পাঠান
+        </a>
       )}
 
-      {customerData?.address?.street && (
-        <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
-          🏠 {customerData.address.street}
-          {customerData.address.pincode && ` — ${customerData.address.pincode}`}
-        </p>
-      )}
-
-      {customerData?.altPhone && (
-        <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
-          📞 বিকল্প নাম্বার: {customerData.altPhone}
-        </p>
-      )}
-
-      {customerData?.occupation && (
-        <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
-          💼 পেশা: {customerData.occupation}
-        </p>
-      )}
-
-      <p style={{ color: tier.color, fontWeight: "bold", fontSize: 18, marginTop: 10 }}>
-        {tier.label} — স্কোর: {score}/100
-      </p>
-      {customerData?.isRedFlagged && (
-        <p style={{ color: "red", fontWeight: "bold" }}>
-          ⚠️ আপনার প্রোফাইলে Red Flag আছে (বারবার রিজেক্ট করার কারণে)
-        </p>
-      )}
-
-      <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
-        <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>মোট বাকি (অপরিশোধিত)</p>
-          <p style={{ margin: 0, fontSize: 20, fontWeight: "bold", color: "orange" }}>₹{totalOutstanding}</p>
-        </div>
-        <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>মোট পরিশোধিত</p>
-          <p style={{ margin: 0, fontSize: 20, fontWeight: "bold", color: "green" }}>₹{totalPaid}</p>
-        </div>
-        <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>বাকি আছে এমন দোকান</p>
-          <p style={{ margin: 0, fontSize: 20, fontWeight: "bold" }}>{shopIdsWithDue.size}</p>
-        </div>
-        <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>মোট দোকান (সব মিলিয়ে)</p>
-          <p style={{ margin: 0, fontSize: 20, fontWeight: "bold" }}>{allShopIds.size}</p>
-        </div>
-      </div>
-
-      <h3 style={{ marginTop: 30 }}>দোকান অনুযায়ী হিসাব</h3>
-      {shopList.length === 0 && <p>কোনো দোকানে লেনদেন নেই।</p>}
-      {shopList.map((shop, idx) => (
-        <div key={idx} style={{ background: "#1a1a1a", padding: 10, marginBottom: 8 }}>
-          <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName}</p>
-          <p style={{ margin: 0, fontSize: 13 }}>
-            বাকি: <span style={{ color: shop.outstanding > 0 ? "orange" : "#999" }}>₹{shop.outstanding}</span>
-            {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{shop.paid}</span>
-          </p>
-        </div>
-      ))}
-
-      <h3 style={{ marginTop: 30 }}>সব লেনদেনের বিস্তারিত</h3>
-      {transactions.length === 0 && <p>কোনো রেকর্ড নেই।</p>}
+      <h3 style={{ marginTop: 30 }}>সাম্প্রতিক রিকোয়েস্টগুলো</h3>
+      {transactions.length === 0 && <p>কোনো রিকোয়েস্ট নেই।</p>}
       {transactions.map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
+        const approveLink = `/approve/${txn.approvalToken}`;
         return (
           <div
             key={txn.id}
@@ -203,27 +353,86 @@ export default function CustomerDashboardPage() {
               background: "#1a1a1a",
             }}
           >
-            <p style={{ margin: 0 }}>🏪 {txn.shopName}</p>
+            <p style={{ margin: 0 }}>
+              👤 {txn.customerPhone}
+              {txn.verifiedByShopkeeper && (
+                <span style={{ color: "#3b82f6", fontSize: 11, marginLeft: 6 }}>✅ যাচাইকৃত</span>
+              )}
+            </p>
             <p style={{ margin: 0 }}>
               ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
             </p>
             <strong style={{ color: s.color }}>{s.label}</strong>
 
-            {txn.status === "pending_approval" && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button
-                  onClick={() => respond(txn, "approved")}
-                  style={{ flex: 1, padding: 8, background: "green", color: "white", border: "none" }}
+            {txn.status === "pending_approval" && txn.approvalToken && (
+              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <a
+                  href={buildWhatsAppLink(
+                    txn.customerPhone,
+                    `আপনার একটি বাকি অনুরোধ এসেছে। অনুমোদন বা প্রত্যাখ্যান করতে এখানে ক্লিক করুন: ${
+                      (process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : ""))
+                    }${approveLink}`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: 6,
+                    background: "#25D366",
+                    color: "white",
+                    fontSize: 13,
+                    textDecoration: "none",
+                  }}
                 >
-                  ✅ Approve
-                </button>
+                  📱 WhatsApp এ পাঠান
+                </a>
                 <button
-                  onClick={() => respond(txn, "rejected")}
-                  style={{ flex: 1, padding: 8, background: "red", color: "white", border: "none" }}
+                  onClick={() => copyLink(approveLink, txn.id)}
+                  style={{
+                    padding: 6,
+                    background: "#333",
+                    color: "white",
+                    border: "1px solid #666",
+                  }}
                 >
-                  ❌ Reject
+                  {copiedId === txn.id ? "✅ কপি হয়েছে" : "📋 লিংক কপি করুন"}
                 </button>
               </div>
+            )}
+
+            {txn.status === "approved" && (
+              <button
+                onClick={() => markAsPaid(txn.id)}
+                style={{
+                  display: "block",
+                  marginTop: 8,
+                  padding: 6,
+                  background: "#333",
+                  color: "white",
+                  border: "1px solid #666",
+                }}
+              >
+                💰 Paid মার্ক করুন
+              </button>
+            )}
+
+            {txn.status === "awaiting_pin_confirmation" && (
+              <>
+                <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
+                  PIN: {txn.securityPIN} (কাস্টমারকে দিন)
+                </p>
+                <button
+                  onClick={() => copyLink(`/confirm-payment/${txn.id}`, txn.id)}
+                  style={{
+                    marginTop: 4,
+                    padding: 6,
+                    background: "#333",
+                    color: "white",
+                    border: "1px solid #666",
+                  }}
+                >
+                  {copiedId === txn.id ? "✅ কপি হয়েছে" : "📋 লিংক কপি করুন"}
+                </button>
+              </>
             )}
           </div>
         );

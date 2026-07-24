@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { normalizePhone } from "@/lib/phone";
 
 export default function CustomerOnboardingPage() {
   const [name, setName] = useState("");
@@ -33,7 +34,7 @@ export default function CustomerOnboardingPage() {
     setError("");
     try {
       const user = auth.currentUser;
-      const digits = user.phoneNumber.replace(/\D/g, "");
+      const digits = normalizePhone(user.phoneNumber);
 
       await updateDoc(doc(db, "customers", digits), {
         name,

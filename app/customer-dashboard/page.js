@@ -4,6 +4,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, serverTimestamp, collection, query, where, orderBy } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { updateCustomerScore } from "@/lib/scoring";
+import { normalizePhone } from "@/lib/phone";
 
 export default function CustomerDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -16,7 +17,7 @@ export default function CustomerDashboardPage() {
         window.location.href = "/customer-login";
         return;
       }
-      const digits = user.phoneNumber.replace(/\D/g, "");
+      const digits = normalizePhone(user.phoneNumber);
 
       const unsubCustomer = onSnapshot(doc(db, "customers", digits), (snap) => {
         setCustomerData(snap.exists() ? snap.data() : null);
@@ -122,7 +123,34 @@ export default function CustomerDashboardPage() {
         </button>
       </div>
 
-      <p style={{ color: tier.color, fontWeight: "bold", fontSize: 18 }}>
+      {customerData?.name && (
+        <p style={{ margin: "4px 0", fontSize: 16 }}>
+          👤 {customerData.name}
+          {customerData.address?.city &&
+            ` — ${customerData.address.city}, ${customerData.address.state}`}
+        </p>
+      )}
+
+      {customerData?.address?.street && (
+        <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
+          🏠 {customerData.address.street}
+          {customerData.address.pincode && ` — ${customerData.address.pincode}`}
+        </p>
+      )}
+
+      {customerData?.altPhone && (
+        <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
+          📞 বিকল্প নাম্বার: {customerData.altPhone}
+        </p>
+      )}
+
+      {customerData?.occupation && (
+        <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
+          💼 পেশা: {customerData.occupation}
+        </p>
+      )}
+
+      <p style={{ color: tier.color, fontWeight: "bold", fontSize: 18, marginTop: 10 }}>
         {tier.label} — স্কোর: {score}/100
       </p>
       {customerData?.isRedFlagged && (

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { normalizePhone } from "@/lib/phone";
 
 export default function CustomerLoginPage() {
   const [phone, setPhone] = useState("");
@@ -39,7 +40,7 @@ export default function CustomerLoginPage() {
     try {
       const result = await confirmationResult.confirm(otp);
       const user = result.user;
-      const digits = user.phoneNumber.replace(/\D/g, "");
+      const digits = normalizePhone(user.phoneNumber);
 
       const customerRef = doc(db, "customers", digits);
       const snap = await getDoc(customerRef);
@@ -56,7 +57,6 @@ export default function CustomerLoginPage() {
         });
         window.location.href = "/customer-onboarding";
       } else if (!snap.data().name) {
-        // প্রোফাইল আছে কিন্তু নাম দেওয়া হয়নি
         window.location.href = "/customer-onboarding";
       } else {
         window.location.href = "/customer-dashboard";
