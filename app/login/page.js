@@ -1,15 +1,60 @@
 "use client";
 import { useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import {
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function LoginPage() {
+  const [mode, setMode] = useState("password");
+  const [phonePw, setPhonePw] = useState("");
+  const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const redirectAfterLogin = async (uid) => {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      await setDoc(userRef, { role: "shopkeeper", createdAt: serverTimestamp() });
+    }
+    const shopRef = doc(db, "shopkeepers", uid);
+    const shopSnap = await getDoc(shopRef);
+    if (!shopSnap.exists()) {
+      await setDoc(shopRef, { status: "pending_review", createdAt: serverTimestamp() });
+      window.location.href = "/onboarding";
+      return;
+    }
+    if (!shopSnap.data().shopName) {
+      window.location.href = "/onboarding";
+      return;
+    }
+    window.location.href = "/dashboard";
+  };
+
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      const digits = phonePw.replace(/\D/g, "").slice(-10);
+      const pseudoEmail = `${digits}@halkhata.app`;
+      const result = await signInWithEmailAndPassword(auth, pseudoEmail, password);
+      await redirectAfterLogin(result.user.uid);
+    } catch (err) {
+      console.error(err);
+      setError(getFriendlyAuthError(err));
+    }
+    setSubmitting(false);
+  };
 
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -29,7 +74,8 @@ export default function LoginPage() {
       setConfirmationResult(result);
       setStep("otp");
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(getFriendlyAuthError(err));
     }
   };
 
@@ -38,72 +84,104 @@ export default function LoginPage() {
     setError("");
     try {
       const result = await confirmationResult.confirm(otp);
-      const user = result.user;
-
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        await setDoc(userRef, {
-          phone: user.phoneNumber,
-          role: "shopkeeper",
-          name: null,
-          createdAt: serverTimestamp(),
-        });
-
-        await setDoc(doc(db, "shopkeepers", user.uid), {
-          shopName: null,
-          ownerName: null,
-          shopAddress: null,
-          phone: user.phoneNumber,
-          status: "pending_review",
-          verifiedAt: null,
-          verifiedBy: null,
-          createdAt: serverTimestamp(),
-          totalCustomers: 0,
-          totalOutstandingAmount: 0,
-        });
-
-        window.location.href = "/onboarding";
-      } else {
-        window.location.href = "/dashboard";
-      }
+      await redirectAfterLogin(result.user.uid);
     } catch (err) {
       console.error(err);
-      setError("ভুল OTP, আবার চেষ্টা করুন");
+      setError(getFriendlyAuthError(err));
     }
   };
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>শপকিপার লগইন</h2>
+      <h2>🏪 দোকানদার লগইন</h2>
 
-      {step === "phone" && (
-        <form onSubmit={sendOtp}>
+      <div style={{ display: "flex", marginBottom: 20 }}>
+        <button
+          onClick={() => setMode("password")}
+          style={{
+            flex: 1,
+            padding: 10,
+            background: mode === "password" ? "#2563eb" : "#333",
+            color: "white",
+            border: "none",
+          }}
+        >
+          পাসওয়ার্ড দিয়ে
+        </button>
+        <button
+          onClick={() => setMode("otp")}
+          style={{
+            flex: 1,
+            padding: 10,
+            background: mode === "otp" ? "#2563eb" : "#333",
+            color: "white",
+            border: "none",
+          }}
+        >
+          OTP দিয়ে
+        </button>
+      </div>
+
+      {mode === "password" && (
+        <form onSubmit={handlePasswordLogin}>
           <input
             type="tel"
-            placeholder="ফোন নাম্বার (যেমন 9876543210)"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            placeholder="ফোন নাম্বার"
+            value={phonePw}
+            onChange={(e) => setPhonePw(e.target.value)}
             required
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>OTP পাঠান</button>
+          <input
+            type="password"
+            placeholder="পাসওয়ার্ড"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          />
+          <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
+            {submitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
+          </button>
+          <a href="/forgot-password" style={{ display: "block", marginTop: 10, fontSize: 13, color: "#999" }}>
+            পাসওয়ার্ড ভুলে গেছেন?
+          </a>
         </form>
       )}
 
-      {step === "otp" && (
-        <form onSubmit={verifyOtp}>
-          <input
-            type="text"
-            placeholder="OTP কোড দিন"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            required
-            style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
-          />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>যাচাই করুন</button>
-        </form>
+      {mode === "otp" && (
+        <>
+          {step === "phone" && (
+            <form onSubmit={sendOtp}>
+              <input
+                type="tel"
+                placeholder="ফোন নাম্বার"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+              />
+              <button type="submit" style={{ width: "100%", padding: 10 }}>
+                OTP পাঠান
+              </button>
+            </form>
+          )}
+          {step === "otp" && (
+            <form onSubmit={verifyOtp}>
+              <input
+                type="text"
+                placeholder="OTP কোড দিন"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+              />
+              <button type="submit" style={{ width: "100%", padding: 10 }}>
+                যাচাই করুন
+              </button>
+            </form>
+          )}
+        </>
       )}
 
       {error && <p style={{ color: "red" }}>{error}</p>}

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
+import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
 
 const SHOP_TYPES = [
   "মুদি দোকান",
@@ -23,33 +24,53 @@ export default function OnboardingPage() {
   const [pincode, setPincode] = useState("");
   const [shopType, setShopType] = useState(SHOP_TYPES[0]);
   const [yearsInBusiness, setYearsInBusiness] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
+
+    if (password.length < 6) {
+      setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("দুটো পাসওয়ার্ড মিলছে না।");
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const uid = auth.currentUser.uid;
+      const user = auth.currentUser;
+      const uid = user.uid;
 
       await updateDoc(doc(db, "shopkeepers", uid), {
         shopName,
         ownerName,
         shopAddress: `${street}, ${city}, ${stateVal} - ${pincode}`,
-        address: {
-          street,
-          city,
-          state: stateVal,
-          pincode,
-        },
+        address: { street, city, state: stateVal, pincode },
         shopType,
         yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : null,
       });
 
+      const digits = user.phoneNumber.replace(/\D/g, "").slice(-10);
+      const pseudoEmail = `${digits}@halkhata.app`;
+      try {
+        const cred = EmailAuthProvider.credential(pseudoEmail, password);
+        await linkWithCredential(user, cred);
+      } catch (linkErr) {
+        console.warn("Password link skipped:", linkErr.code);
+      }
+
+      await updateDoc(doc(db, "users", uid), { hasPassword: true }).catch(() => {});
+
       window.location.href = "/dashboard";
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError("সেভ করা যায়নি, আবার চেষ্টা করুন।");
       setSubmitting(false);
     }
   };
@@ -64,7 +85,7 @@ export default function OnboardingPage() {
           value={shopName}
           onChange={(e) => setShopName(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
         />
         <input
           type="text"
@@ -72,14 +93,10 @@ export default function OnboardingPage() {
           value={ownerName}
           onChange={(e) => setOwnerName(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
         />
 
-        <select
-          value={shopType}
-          onChange={(e) => setShopType(e.target.value)}
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
-        >
+        <select value={shopType} onChange={(e) => setShopType(e.target.value)} style={inputStyle}>
           {SHOP_TYPES.map((type) => (
             <option key={type} value={type}>
               {type}
@@ -93,7 +110,7 @@ export default function OnboardingPage() {
           value={yearsInBusiness}
           onChange={(e) => setYearsInBusiness(e.target.value)}
           min="0"
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
         />
 
         <input
@@ -102,7 +119,7 @@ export default function OnboardingPage() {
           value={street}
           onChange={(e) => setStreet(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
         />
         <input
           type="text"
@@ -110,7 +127,7 @@ export default function OnboardingPage() {
           value={city}
           onChange={(e) => setCity(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
         />
         <input
           type="text"
@@ -118,7 +135,7 @@ export default function OnboardingPage() {
           value={stateVal}
           onChange={(e) => setStateVal(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
         />
         <input
           type="text"
@@ -126,7 +143,28 @@ export default function OnboardingPage() {
           value={pincode}
           onChange={(e) => setPincode(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={inputStyle}
+        />
+
+        <hr style={{ margin: "16px 0", borderColor: "#333" }} />
+        <p style={{ fontSize: 13, color: "#999", marginBottom: 8 }}>
+          একটা পাসওয়ার্ড সেট করুন — পরের বার OTP ছাড়াই লগইন করতে পারবেন।
+        </p>
+        <input
+          type="password"
+          placeholder="পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          style={inputStyle}
+        />
+        <input
+          type="password"
+          placeholder="পাসওয়ার্ড আবার লিখুন"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          style={inputStyle}
         />
 
         <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
@@ -137,3 +175,5 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
+const inputStyle = { display: "block", width: "100%", marginBottom: 10, padding: 8 };
