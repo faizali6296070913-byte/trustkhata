@@ -11,11 +11,11 @@ import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function CustomerLoginPage() {
-  const [mode, setMode] = useState("password"); // "password" | "otp"
+  const [mode, setMode] = useState("password");
 
   const [pwPhone, setPwPhone] = useState("");
   const [pwPassword, setPwPassword] = useState("");
-  const [showPwPassword, setShowPwPassword] = useState(false); // ---- নতুন ----
+  const [showPwPassword, setShowPwPassword] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
@@ -24,6 +24,10 @@ export default function CustomerLoginPage() {
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
+
+  // ---- নতুন: OTP পাঠানো ও যাচাই করার সময় আলাদা লোডিং state ----
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
@@ -52,6 +56,7 @@ export default function CustomerLoginPage() {
   const sendOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setSendingOtp(true); // ---- নতুন ----
     try {
       setupRecaptcha();
       const fullPhone = phone.startsWith("+") ? phone : `+91${phone}`;
@@ -62,11 +67,13 @@ export default function CustomerLoginPage() {
       console.error(err);
       setError(getFriendlyAuthError(err));
     }
+    setSendingOtp(false); // ---- নতুন ----
   };
 
   const verifyOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setVerifyingOtp(true); // ---- নতুন ----
     try {
       const result = await confirmationResult.confirm(otp);
       const user = result.user;
@@ -94,6 +101,7 @@ export default function CustomerLoginPage() {
     } catch (err) {
       console.error(err);
       setError(getFriendlyAuthError(err));
+      setVerifyingOtp(false); // ---- নতুন ----
     }
   };
 
@@ -139,7 +147,6 @@ export default function CustomerLoginPage() {
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
 
-          {/* ---- নতুন: পাসওয়ার্ড ইনপুট + চোখ আইকন ---- */}
           <div style={{ position: "relative", marginBottom: 10 }}>
             <input
               type={showPwPassword ? "text" : "password"}
@@ -162,7 +169,6 @@ export default function CustomerLoginPage() {
                 cursor: "pointer",
                 fontSize: 16,
               }}
-              aria-label={showPwPassword ? "পাসওয়ার্ড লুকান" : "পাসওয়ার্ড দেখান"}
             >
               {showPwPassword ? "🙈" : "👁️"}
             </button>
@@ -191,10 +197,21 @@ export default function CustomerLoginPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
+                disabled={sendingOtp}
                 style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
               />
-              <button type="submit" style={{ width: "100%", padding: 10 }}>
-                OTP পাঠান
+              {/* ---- বদলানো হয়েছে: লোডিং অবস্থায় বাটন disable ও টেক্সট বদল ---- */}
+              <button
+                type="submit"
+                disabled={sendingOtp}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  opacity: sendingOtp ? 0.7 : 1,
+                  cursor: sendingOtp ? "not-allowed" : "pointer",
+                }}
+              >
+                {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
               </button>
             </form>
           )}
@@ -207,10 +224,20 @@ export default function CustomerLoginPage() {
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 required
+                disabled={verifyingOtp}
                 style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
               />
-              <button type="submit" style={{ width: "100%", padding: 10 }}>
-                যাচাই করুন
+              <button
+                type="submit"
+                disabled={verifyingOtp}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  opacity: verifyingOtp ? 0.7 : 1,
+                  cursor: verifyingOtp ? "not-allowed" : "pointer",
+                }}
+              >
+                {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
               </button>
             </form>
           )}
