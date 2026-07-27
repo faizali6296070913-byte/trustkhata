@@ -81,20 +81,24 @@ export default function CustomerDashboardPage() {
     approved: { color: "green", label: "🟢 Approved" },
     rejected: { color: "red", label: "🔴 Rejected" },
     awaiting_pin_confirmation: { color: "orange", label: "🔑 PIN অপেক্ষমান" },
-    paid: { color: "blue", label: "✅ পরিশোধিত" },
+    paid: { color: "blue", label: "✅ সম্পূর্ণ পরিশোধিত" },
   };
 
   const score = customerData?.trustScore ?? 50;
   const tier = getScoreTier(score);
 
+  // ---- বদলানো হয়েছে: পুরো amount না নিয়ে, বাকি অংশ (amount - amountPaid) হিসাব করা হচ্ছে ----
   const outstandingStatuses = ["approved", "awaiting_pin_confirmation"];
   const outstandingTxns = transactions.filter((t) => outstandingStatuses.includes(t.status));
   const paidTxns = transactions.filter((t) => t.status === "paid");
 
-  const totalOutstanding = outstandingTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-  const totalPaid = paidTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const getRemaining = (t) => (t.amount || 0) - (t.amountPaid || 0);
 
-  const shopIdsWithDue = new Set(outstandingTxns.map((t) => t.shopId));
+  const totalOutstanding = outstandingTxns.reduce((sum, t) => sum + getRemaining(t), 0);
+  const totalPaid = paidTxns.reduce((sum, t) => sum + (t.amount || 0), 0)
+    + outstandingTxns.reduce((sum, t) => sum + (t.amountPaid || 0), 0); // আংশিক শোধ হওয়া টাকাও যোগ
+
+  const shopIdsWithDue = new Set(outstandingTxns.filter((t) => getRemaining(t) > 0).map((t) => t.shopId));
   const allShopIds = new Set(transactions.map((t) => t.shopId));
 
   const shopSummary = {};
@@ -103,7 +107,8 @@ export default function CustomerDashboardPage() {
       shopSummary[t.shopId] = { shopName: t.shopName, outstanding: 0, paid: 0 };
     }
     if (outstandingStatuses.includes(t.status)) {
-      shopSummary[t.shopId].outstanding += t.amount || 0;
+      shopSummary[t.shopId].outstanding += getRemaining(t);
+      shopSummary[t.shopId].paid += t.amountPaid || 0;
     }
     if (t.status === "paid") {
       shopSummary[t.shopId].paid += t.amount || 0;
@@ -194,6 +199,7 @@ export default function CustomerDashboardPage() {
       {transactions.length === 0 && <p>কোনো রেকর্ড নেই।</p>}
       {transactions.map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
+        const remaining = getRemaining(txn);
         return (
           <div
             key={txn.id}
@@ -208,6 +214,14 @@ export default function CustomerDashboardPage() {
             <p style={{ margin: 0 }}>
               ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
             </p>
+
+            {/* ---- নতুন: আংশিক পরিশোধের অগ্রগতি ---- */}
+            {(txn.amountPaid || 0) > 0 && txn.status !== "paid" && (
+              <p style={{ margin: 0, fontSize: 12, color: "#4ade80" }}>
+                পরিশোধিত: ₹{txn.amountPaid} | বাকি: ₹{remaining}
+              </p>
+            )}
+
             <strong style={{ color: s.color }}>{s.label}</strong>
 
             {txn.status === "pending_approval" && (

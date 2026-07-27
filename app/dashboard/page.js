@@ -37,6 +37,9 @@ export default function DashboardPage() {
   const [checkingScore, setCheckingScore] = useState(false);
   const [verifiedByMe, setVerifiedByMe] = useState(false);
 
+  // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
+  const [paymentInputs, setPaymentInputs] = useState({});
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -134,6 +137,8 @@ export default function DashboardPage() {
           customerPhone: phone,
           customerId: phoneHash,
           amount: Number(amount),
+          amountPaid: 0, // ---- নতুন: এখন পর্যন্ত কত শোধ হয়েছে ----
+          payments: [], // ---- নতুন: কিস্তির ইতিহাস ----
           itemDetails: itemDetails || null,
           billPhotoURL: null,
           status: "pending_approval",
@@ -183,11 +188,26 @@ export default function DashboardPage() {
     setSubmitting(false);
   };
 
-  const markAsPaid = async (txnId) => {
+  // ---- বদলানো হয়েছে: পুরো amount না নিয়ে, দোকানদার যত টাকা পেয়েছেন সেটা নিয়ে PIN তৈরি করে ----
+  const markAsPaid = async (txn) => {
+    const remaining = txn.amount - (txn.amountPaid || 0);
+    const enteredRaw = paymentInputs[txn.id];
+    const entered = enteredRaw ? Number(enteredRaw) : remaining;
+
+    if (!entered || entered <= 0) {
+      alert("সঠিক পরিমাণ লিখুন।");
+      return;
+    }
+    if (entered > remaining) {
+      alert(`সর্বোচ্চ ₹${remaining} নেওয়া যাবে (এর বেশি বাকি নেই)।`);
+      return;
+    }
+
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
     try {
-      await updateDoc(doc(db, "transactions", txnId), {
+      await updateDoc(doc(db, "transactions", txn.id), {
         securityPIN: pin,
+        pendingPaymentAmount: entered, // ---- নতুন: এই কিস্তিতে কত টাকা কনফার্ম হবে ----
         pinGeneratedAt: serverTimestamp(),
         status: "awaiting_pin_confirmation",
       });
@@ -230,7 +250,7 @@ export default function DashboardPage() {
     approved: { color: "green", label: "🟢 Approved" },
     rejected: { color: "red", label: "🔴 Rejected" },
     awaiting_pin_confirmation: { color: "orange", label: "🔑 PIN অপেক্ষমান" },
-    paid: { color: "blue", label: "✅ পরিশোধিত" },
+    paid: { color: "blue", label: "✅ সম্পূর্ণ পরিশোধিত" },
   };
 
   return (
@@ -343,6 +363,9 @@ export default function DashboardPage() {
       {transactions.map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
         const approveLink = `/approve/${txn.approvalToken}`;
+        const amountPaid = txn.amountPaid || 0;
+        const remaining = txn.amount - amountPaid;
+
         return (
           <div
             key={txn.id}
@@ -362,6 +385,14 @@ export default function DashboardPage() {
             <p style={{ margin: 0 }}>
               ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
             </p>
+
+            {/* ---- নতুন: আংশিক পরিশোধের অগ্রগতি দেখানো ---- */}
+            {amountPaid > 0 && txn.status !== "paid" && (
+              <p style={{ margin: 0, fontSize: 12, color: "#4ade80" }}>
+                এ পর্যন্ত পরিশোধিত: ₹{amountPaid} | বাকি: ₹{remaining}
+              </p>
+            )}
+
             <strong style={{ color: s.color }}>{s.label}</strong>
 
             {txn.status === "pending_approval" && txn.approvalToken && (
@@ -399,26 +430,41 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* ---- বদলানো হয়েছে: পুরো "Paid মার্ক করুন" এর বদলে আংশিক টাকা নেওয়ার ইনপুট ---- */}
             {txn.status === "approved" && (
-              <button
-                onClick={() => markAsPaid(txn.id)}
-                style={{
-                  display: "block",
-                  marginTop: 8,
-                  padding: 6,
-                  background: "#333",
-                  color: "white",
-                  border: "1px solid #666",
-                }}
-              >
-                💰 Paid মার্ক করুন
-              </button>
+              <div style={{ marginTop: 8 }}>
+                <p style={{ fontSize: 12, color: "#999", margin: "0 0 4px 0" }}>
+                  আজ কত টাকা পেয়েছেন? (সর্বোচ্চ ₹{remaining})
+                </p>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="number"
+                    placeholder={`₹${remaining}`}
+                    value={paymentInputs[txn.id] ?? ""}
+                    onChange={(e) =>
+                      setPaymentInputs((prev) => ({ ...prev, [txn.id]: e.target.value }))
+                    }
+                    style={{ flex: 1, padding: 6 }}
+                  />
+                  <button
+                    onClick={() => markAsPaid(txn)}
+                    style={{
+                      padding: "6px 10px",
+                      background: "#333",
+                      color: "white",
+                      border: "1px solid #666",
+                    }}
+                  >
+                    💰 নিশ্চিত করুন
+                  </button>
+                </div>
+              </div>
             )}
 
             {txn.status === "awaiting_pin_confirmation" && (
               <>
                 <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
-                  PIN: {txn.securityPIN} (কাস্টমারকে দিন)
+                  এই কিস্তি: ₹{txn.pendingPaymentAmount} | PIN: {txn.securityPIN} (কাস্টমারকে দিন)
                 </p>
                 <button
                   onClick={() => copyLink(`/confirm-payment/${txn.id}`, txn.id)}
