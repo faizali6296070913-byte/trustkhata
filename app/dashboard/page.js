@@ -562,3 +562,49 @@ export default function DashboardPage() {
                   <input
                     type="number"
                     placeholder={`₹${remaining}`}
+                    value={paymentInputs[txn.id] ?? ""}
+                    onChange={(e) =>
+                      setPaymentInputs((prev) => ({ ...prev, [txn.id]: e.target.value }))
+                    }
+                    style={{ flex: 1, padding: 6 }}
+                  />
+                  <button
+                    onClick={() => markAsPaid(txn)}
+                    style={{
+                      padding: "6px 10px",
+                      background: "#333",
+                      color: "white",
+                      border: "1px solid #666",
+                    }}
+                  >
+                    💰 নিশ্চিত করুন
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {txn.status === "awaiting_pin_confirmation" && (
+              <>
+                <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
+                  এই কিস্তি: ₹{txn.pendingPaymentAmount} | PIN: {txn.securityPIN} (কাস্টমারকে দিন)
+                </p>
+                <button
+                  onClick={() => copyLink(`/confirm-payment/${txn.id}`, txn.id)}
+                  style={{
+                    marginTop: 4,
+                    padding: 6,
+                    background: "#333",
+                    color: "white",
+                    border: "1px solid #666",
+                  }}
+                >
+                  {copiedId === txn.id ? "✅ কপি হয়েছে" : "📋 লিংক কপি করুন"}
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
