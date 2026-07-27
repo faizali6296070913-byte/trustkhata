@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { auth } from "@/lib/firebase";
-import { RecaptchaVerifier, signInWithPhoneNumber, updatePassword } from "firebase/auth";
+import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function ForgotPasswordPage() {
@@ -11,11 +11,12 @@ export default function ForgotPasswordPage() {
   const [step, setStep] = useState("phone");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showNewPw, setShowNewPw] = useState(false); // ---- নতুন ----
+  const [showNewPw, setShowNewPw] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false); // ---- নতুন ----
-  const [verifyingOtp, setVerifyingOtp] = useState(false); // ---- নতুন ----
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -56,6 +57,7 @@ export default function ForgotPasswordPage() {
     setVerifyingOtp(false);
   };
 
+  // ---- বদলানো হয়েছে: এখন সরাসরি না বদলে, সার্ভারের API রুট কল করে সঠিক একাউন্টের পাসওয়ার্ড বদলানো হচ্ছে ----
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError("");
@@ -67,12 +69,25 @@ export default function ForgotPasswordPage() {
       setError("দুটো পাসওয়ার্ড মিলছে না।");
       return;
     }
+    setResetting(true);
     try {
-      await updatePassword(auth.currentUser, newPassword);
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+        setResetting(false);
+        return;
+      }
       setSuccess(true);
     } catch (err) {
       console.error(err);
-      setError(getFriendlyAuthError(err));
+      setError("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      setResetting(false);
     }
   };
 
@@ -135,7 +150,6 @@ export default function ForgotPasswordPage() {
 
       {step === "newpassword" && (
         <form onSubmit={handleResetPassword}>
-          {/* ---- নতুন: 👁️ আইকনসহ পাসওয়ার্ড ইনপুট ---- */}
           <div style={{ position: "relative", marginBottom: 10 }}>
             <input
               type={showNewPw ? "text" : "password"}
@@ -143,6 +157,7 @@ export default function ForgotPasswordPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
+              disabled={resetting}
               style={{ ...inputStyle, marginBottom: 0, paddingRight: 40, boxSizing: "border-box" }}
             />
             <button
@@ -159,10 +174,15 @@ export default function ForgotPasswordPage() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
+            disabled={resetting}
             style={inputStyle}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            পাসওয়ার্ড বদলান
+          <button
+            type="submit"
+            disabled={resetting}
+            style={{ width: "100%", padding: 10, opacity: resetting ? 0.7 : 1 }}
+          >
+            {resetting ? "⏳ পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড বদলান"}
           </button>
         </form>
       )}
