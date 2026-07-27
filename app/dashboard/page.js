@@ -13,14 +13,32 @@ import {
   where,
   orderBy,
 } from "firebase/firestore";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signOut,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  updatePassword,
+} from "firebase/auth";
 import { normalizePhone } from "@/lib/phone";
+import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function DashboardPage() {
   const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uid, setUid] = useState(null);
   const [transactions, setTransactions] = useState([]);
+
+  // ---- নতুন: সেটিংস / পাসওয়ার্ড বদলানোর জন্য state ----
+  const [showSettings, setShowSettings] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [pwChangeError, setPwChangeError] = useState("");
+  const [pwChangeSuccess, setPwChangeSuccess] = useState("");
+  const [pwChangeSubmitting, setPwChangeSubmitting] = useState(false);
 
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
@@ -226,6 +244,43 @@ export default function DashboardPage() {
     });
   };
 
+  // ---- নতুন: পাসওয়ার্ড বদলানো ----
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwChangeError("");
+    setPwChangeSuccess("");
+
+    if (newPassword.length < 6) {
+      setPwChangeError("নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPwChangeError("নতুন পাসওয়ার্ড দুই জায়গায় মিলছে না।");
+      return;
+    }
+
+    setPwChangeSubmitting(true);
+    try {
+      const digits = normalizePhone(shopData.phone);
+      const pseudoEmail = `${digits}@halkhata.app`;
+      const credential = EmailAuthProvider.credential(pseudoEmail, currentPassword);
+
+      // আগে বর্তমান পাসওয়ার্ড দিয়ে যাচাই করা হচ্ছে
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      // যাচাই সফল হলে নতুন পাসওয়ার্ড সেট করা হচ্ছে
+      await updatePassword(auth.currentUser, newPassword);
+
+      setPwChangeSuccess("✅ পাসওয়ার্ড সফলভাবে বদলানো হয়েছে।");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (err) {
+      console.error(err);
+      setPwChangeError(getFriendlyAuthError(err));
+    }
+    setPwChangeSubmitting(false);
+  };
+
   if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
 
   if (shopData?.status === "pending_review") {
@@ -257,14 +312,81 @@ export default function DashboardPage() {
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>{shopData.shopName}</h2>
-        <button
-          onClick={handleLogout}
-          style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
-        >
-          🚪 লগ আউট
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setShowSettings((v) => !v)}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            ⚙️ সেটিংস
+          </button>
+          <button
+            onClick={handleLogout}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            🚪 লগ আউট
+          </button>
+        </div>
       </div>
       <p>✅ স্ট্যাটাস: {shopData.status}</p>
+
+      {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
+      {showSettings && (
+        <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, borderRadius: 6 }}>
+          <h3 style={{ marginTop: 0 }}>🔑 পাসওয়ার্ড বদলান</h3>
+          <form onSubmit={handleChangePassword}>
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <input
+                type={showCurrentPw ? "text" : "password"}
+                placeholder="বর্তমান পাসওয়ার্ড"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPw((v) => !v)}
+                style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer" }}
+              >
+                {showCurrentPw ? "🙈" : "👁️"}
+              </button>
+            </div>
+
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <input
+                type={showNewPw ? "text" : "password"}
+                placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPw((v) => !v)}
+                style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer" }}
+              >
+                {showNewPw ? "🙈" : "👁️"}
+              </button>
+            </div>
+
+            <input
+              type={showNewPw ? "text" : "password"}
+              placeholder="নতুন পাসওয়ার্ড আবার লিখুন"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              required
+              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
+            />
+
+            <button type="submit" disabled={pwChangeSubmitting} style={{ width: "100%", padding: 10 }}>
+              {pwChangeSubmitting ? "পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড বদলান"}
+            </button>
+            {pwChangeError && <p style={{ color: "red", fontSize: 13 }}>{pwChangeError}</p>}
+            {pwChangeSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{pwChangeSuccess}</p>}
+          </form>
+        </div>
+      )}
 
       <h3 style={{ marginTop: 20 }}>নতুন ক্রেডিট রিকোয়েস্ট</h3>
       <form onSubmit={handleCreditRequest}>
@@ -440,49 +562,3 @@ export default function DashboardPage() {
                   <input
                     type="number"
                     placeholder={`₹${remaining}`}
-                    value={paymentInputs[txn.id] ?? ""}
-                    onChange={(e) =>
-                      setPaymentInputs((prev) => ({ ...prev, [txn.id]: e.target.value }))
-                    }
-                    style={{ flex: 1, padding: 6 }}
-                  />
-                  <button
-                    onClick={() => markAsPaid(txn)}
-                    style={{
-                      padding: "6px 10px",
-                      background: "#333",
-                      color: "white",
-                      border: "1px solid #666",
-                    }}
-                  >
-                    💰 নিশ্চিত করুন
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {txn.status === "awaiting_pin_confirmation" && (
-              <>
-                <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
-                  এই কিস্তি: ₹{txn.pendingPaymentAmount} | PIN: {txn.securityPIN} (কাস্টমারকে দিন)
-                </p>
-                <button
-                  onClick={() => copyLink(`/confirm-payment/${txn.id}`, txn.id)}
-                  style={{
-                    marginTop: 4,
-                    padding: 6,
-                    background: "#333",
-                    color: "white",
-                    border: "1px solid #666",
-                  }}
-                >
-                  {copiedId === txn.id ? "✅ কপি হয়েছে" : "📋 লিংক কপি করুন"}
-                </button>
-              </>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}

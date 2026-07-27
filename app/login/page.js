@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState("password");
   const [phonePw, setPhonePw] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // ---- নতুন ----
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -132,14 +133,36 @@ export default function LoginPage() {
             required
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <input
-            type="password"
-            placeholder="পাসওয়ার্ড"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
-          />
+
+          {/* ---- নতুন: পাসওয়ার্ড ইনপুট + চোখ আইকন ---- */}
+          <div style={{ position: "relative", marginBottom: 10 }}>
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="পাসওয়ার্ড"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              style={{
+                position: "absolute",
+                right: 6,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 16,
+              }}
+              aria-label={showPassword ? "পাসওয়ার্ড লুকান" : "পাসওয়ার্ড দেখান"}
+            >
+              {showPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
+
           <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
             {submitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
           </button>

@@ -1,15 +1,33 @@
-"use client";
+,"use client";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, serverTimestamp, collection, query, where, orderBy } from "firebase/firestore";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signOut,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  updatePassword,
+} from "firebase/auth";
 import { updateCustomerScore } from "@/lib/scoring";
 import { normalizePhone } from "@/lib/phone";
+import { getFriendlyAuthError } from "@/lib/authErrors";
 
 export default function CustomerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [customerData, setCustomerData] = useState(null);
   const [transactions, setTransactions] = useState([]);
+
+  // ---- নতুন: সেটিংস / পাসওয়ার্ড বদলানোর জন্য state ----
+  const [showSettings, setShowSettings] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [pwChangeError, setPwChangeError] = useState("");
+  const [pwChangeSuccess, setPwChangeSuccess] = useState("");
+  const [pwChangeSubmitting, setPwChangeSubmitting] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -45,6 +63,41 @@ export default function CustomerDashboardPage() {
     signOut(auth).then(() => {
       window.location.href = "/";
     });
+  };
+
+  // ---- নতুন: পাসওয়ার্ড বদলানো ----
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwChangeError("");
+    setPwChangeSuccess("");
+
+    if (newPassword.length < 6) {
+      setPwChangeError("নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPwChangeError("নতুন পাসওয়ার্ড দুই জায়গায় মিলছে না।");
+      return;
+    }
+
+    setPwChangeSubmitting(true);
+    try {
+      const digits = normalizePhone(customerData?.phone || auth.currentUser?.phoneNumber || "");
+      const pseudoEmail = `${digits}@halkhata.app`;
+      const credential = EmailAuthProvider.credential(pseudoEmail, currentPassword);
+
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, newPassword);
+
+      setPwChangeSuccess("✅ পাসওয়ার্ড সফলভাবে বদলানো হয়েছে।");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (err) {
+      console.error(err);
+      setPwChangeError(getFriendlyAuthError(err));
+    }
+    setPwChangeSubmitting(false);
   };
 
   const respond = async (txn, decision) => {
@@ -120,13 +173,80 @@ export default function CustomerDashboardPage() {
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>আমার প্রোফাইল</h2>
-        <button
-          onClick={handleLogout}
-          style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
-        >
-          🚪 লগ আউট
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => setShowSettings((v) => !v)}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            ⚙️ সেটিংস
+          </button>
+          <button
+            onClick={handleLogout}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            🚪 লগ আউট
+          </button>
+        </div>
       </div>
+
+      {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
+      {showSettings && (
+        <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, marginTop: 12, borderRadius: 6 }}>
+          <h3 style={{ marginTop: 0 }}>🔑 পাসওয়ার্ড বদলান</h3>
+          <form onSubmit={handleChangePassword}>
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <input
+                type={showCurrentPw ? "text" : "password"}
+                placeholder="বর্তমান পাসওয়ার্ড"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPw((v) => !v)}
+                style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer" }}
+              >
+                {showCurrentPw ? "🙈" : "👁️"}
+              </button>
+            </div>
+
+            <div style={{ position: "relative", marginBottom: 10 }}>
+              <input
+                type={showNewPw ? "text" : "password"}
+                placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPw((v) => !v)}
+                style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer" }}
+              >
+                {showNewPw ? "🙈" : "👁️"}
+              </button>
+            </div>
+
+            <input
+              type={showNewPw ? "text" : "password"}
+              placeholder="নতুন পাসওয়ার্ড আবার লিখুন"
+              value={confirmNewPassword}
+              onChange={(e) => setConfirmNewPassword(e.target.value)}
+              required
+              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
+            />
+
+            <button type="submit" disabled={pwChangeSubmitting} style={{ width: "100%", padding: 10 }}>
+              {pwChangeSubmitting ? "পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড বদলান"}
+            </button>
+            {pwChangeError && <p style={{ color: "red", fontSize: 13 }}>{pwChangeError}</p>}
+            {pwChangeSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{pwChangeSuccess}</p>}
+          </form>
+        </div>
+      )}
 
       {customerData?.name && (
         <p style={{ margin: "4px 0", fontSize: 16 }}>

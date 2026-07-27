@@ -15,6 +15,7 @@ export default function CustomerLoginPage() {
 
   const [pwPhone, setPwPhone] = useState("");
   const [pwPassword, setPwPassword] = useState("");
+  const [showPwPassword, setShowPwPassword] = useState(false); // ---- নতুন ----
   const [pwError, setPwError] = useState("");
   const [pwSubmitting, setPwSubmitting] = useState(false);
 
@@ -137,14 +138,36 @@ export default function CustomerLoginPage() {
             required
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <input
-            type="password"
-            placeholder="পাসওয়ার্ড"
-            value={pwPassword}
-            onChange={(e) => setPwPassword(e.target.value)}
-            required
-            style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
-          />
+
+          {/* ---- নতুন: পাসওয়ার্ড ইনপুট + চোখ আইকন ---- */}
+          <div style={{ position: "relative", marginBottom: 10 }}>
+            <input
+              type={showPwPassword ? "text" : "password"}
+              placeholder="পাসওয়ার্ড"
+              value={pwPassword}
+              onChange={(e) => setPwPassword(e.target.value)}
+              required
+              style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPwPassword((v) => !v)}
+              style={{
+                position: "absolute",
+                right: 6,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 16,
+              }}
+              aria-label={showPwPassword ? "পাসওয়ার্ড লুকান" : "পাসওয়ার্ড দেখান"}
+            >
+              {showPwPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
+
           <button type="submit" disabled={pwSubmitting} style={{ width: "100%", padding: 10 }}>
             {pwSubmitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
           </button>
