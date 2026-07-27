@@ -9,10 +9,13 @@ export default function CustomerForgotPasswordPage() {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false); // ---- নতুন ----
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false); // ---- নতুন ----
+  const [verifyingOtp, setVerifyingOtp] = useState(false); // ---- নতুন ----
 
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -25,6 +28,7 @@ export default function CustomerForgotPasswordPage() {
   const sendOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setSendingOtp(true);
     try {
       setupRecaptcha();
       const fullPhone = phone.startsWith("+") ? phone : `+91${phone}`;
@@ -35,11 +39,13 @@ export default function CustomerForgotPasswordPage() {
       console.error(err);
       setError(getFriendlyAuthError(err));
     }
+    setSendingOtp(false);
   };
 
   const verifyOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setVerifyingOtp(true);
     try {
       await confirmationResult.confirm(otp);
       setStep("newPassword");
@@ -47,6 +53,7 @@ export default function CustomerForgotPasswordPage() {
       console.error(err);
       setError(getFriendlyAuthError(err));
     }
+    setVerifyingOtp(false);
   };
 
   const handleSetNewPassword = async (e) => {
@@ -89,10 +96,15 @@ export default function CustomerForgotPasswordPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
+            disabled={sendingOtp}
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            OTP পাঠান
+          <button
+            type="submit"
+            disabled={sendingOtp}
+            style={{ width: "100%", padding: 10, opacity: sendingOtp ? 0.7 : 1 }}
+          >
+            {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
           </button>
         </form>
       )}
@@ -105,10 +117,15 @@ export default function CustomerForgotPasswordPage() {
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             required
+            disabled={verifyingOtp}
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            যাচাই করুন
+          <button
+            type="submit"
+            disabled={verifyingOtp}
+            style={{ width: "100%", padding: 10, opacity: verifyingOtp ? 0.7 : 1 }}
+          >
+            {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
           </button>
         </form>
       )}
@@ -118,16 +135,26 @@ export default function CustomerForgotPasswordPage() {
           <p style={{ fontSize: 13, color: "green", marginBottom: 10 }}>
             ✅ যাচাই সফল হয়েছে। এখন নতুন পাসওয়ার্ড দিন।
           </p>
+          {/* ---- নতুন: 👁️ আইকনসহ পাসওয়ার্ড ইনপুট ---- */}
+          <div style={{ position: "relative", marginBottom: 10 }}>
+            <input
+              type={showNewPw ? "text" : "password"}
+              placeholder="নতুন পাসওয়ার্ড (অন্তত ৬ অক্ষর)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              style={{ display: "block", width: "100%", padding: 8, paddingRight: 40, boxSizing: "border-box" }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowNewPw((v) => !v)}
+              style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer" }}
+            >
+              {showNewPw ? "🙈" : "👁️"}
+            </button>
+          </div>
           <input
-            type="password"
-            placeholder="নতুন পাসওয়ার্ড (অন্তত ৬ অক্ষর)"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-            style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
-          />
-          <input
-            type="password"
+            type={showNewPw ? "text" : "password"}
             placeholder="নতুন পাসওয়ার্ড আবার লিখুন"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}

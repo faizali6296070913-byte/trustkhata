@@ -11,8 +11,11 @@ export default function ForgotPasswordPage() {
   const [step, setStep] = useState("phone");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false); // ---- নতুন ----
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false); // ---- নতুন ----
+  const [verifyingOtp, setVerifyingOtp] = useState(false); // ---- নতুন ----
 
   const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
@@ -25,6 +28,7 @@ export default function ForgotPasswordPage() {
   const sendOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setSendingOtp(true);
     try {
       setupRecaptcha();
       const fullPhone = phone.startsWith("+") ? phone : `+91${phone}`;
@@ -35,11 +39,13 @@ export default function ForgotPasswordPage() {
       console.error(err);
       setError(getFriendlyAuthError(err));
     }
+    setSendingOtp(false);
   };
 
   const verifyOtp = async (e) => {
     e.preventDefault();
     setError("");
+    setVerifyingOtp(true);
     try {
       await confirmationResult.confirm(otp);
       setStep("newpassword");
@@ -47,6 +53,7 @@ export default function ForgotPasswordPage() {
       console.error(err);
       setError(getFriendlyAuthError(err));
     }
+    setVerifyingOtp(false);
   };
 
   const handleResetPassword = async (e) => {
@@ -92,10 +99,15 @@ export default function ForgotPasswordPage() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
+            disabled={sendingOtp}
             style={inputStyle}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            OTP পাঠান
+          <button
+            type="submit"
+            disabled={sendingOtp}
+            style={{ width: "100%", padding: 10, opacity: sendingOtp ? 0.7 : 1 }}
+          >
+            {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
           </button>
         </form>
       )}
@@ -108,26 +120,41 @@ export default function ForgotPasswordPage() {
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             required
+            disabled={verifyingOtp}
             style={inputStyle}
           />
-          <button type="submit" style={{ width: "100%", padding: 10 }}>
-            যাচাই করুন
+          <button
+            type="submit"
+            disabled={verifyingOtp}
+            style={{ width: "100%", padding: 10, opacity: verifyingOtp ? 0.7 : 1 }}
+          >
+            {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
           </button>
         </form>
       )}
 
       {step === "newpassword" && (
         <form onSubmit={handleResetPassword}>
+          {/* ---- নতুন: 👁️ আইকনসহ পাসওয়ার্ড ইনপুট ---- */}
+          <div style={{ position: "relative", marginBottom: 10 }}>
+            <input
+              type={showNewPw ? "text" : "password"}
+              placeholder="নতুন পাসওয়ার্ড"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              style={{ ...inputStyle, marginBottom: 0, paddingRight: 40, boxSizing: "border-box" }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowNewPw((v) => !v)}
+              style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer" }}
+            >
+              {showNewPw ? "🙈" : "👁️"}
+            </button>
+          </div>
           <input
-            type="password"
-            placeholder="নতুন পাসওয়ার্ড"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-            style={inputStyle}
-          />
-          <input
-            type="password"
+            type={showNewPw ? "text" : "password"}
             placeholder="আবার লিখুন"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
