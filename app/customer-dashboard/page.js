@@ -29,6 +29,18 @@ export default function CustomerDashboardPage() {
   const [pwChangeSuccess, setPwChangeSuccess] = useState("");
   const [pwChangeSubmitting, setPwChangeSubmitting] = useState(false);
 
+  // ---- নতুন: প্রোফাইল এডিট করার জন্য state ----
+  const [editName, setEditName] = useState("");
+  const [editStreet, setEditStreet] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editPincode, setEditPincode] = useState("");
+  const [editAltPhone, setEditAltPhone] = useState("");
+  const [editOccupation, setEditOccupation] = useState("");
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState("");
+  const [profileError, setProfileError] = useState("");
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -38,7 +50,18 @@ export default function CustomerDashboardPage() {
       const digits = normalizePhone(user.phoneNumber);
 
       const unsubCustomer = onSnapshot(doc(db, "customers", digits), (snap) => {
-        setCustomerData(snap.exists() ? snap.data() : null);
+        const data = snap.exists() ? snap.data() : null;
+        setCustomerData(data);
+        // ---- নতুন: প্রোফাইল এডিট ফর্মের ইনপুট বক্স পূরণ করা ----
+        if (data) {
+          setEditName(data.name || "");
+          setEditStreet(data.address?.street || "");
+          setEditCity(data.address?.city || "");
+          setEditState(data.address?.state || "");
+          setEditPincode(data.address?.pincode || "");
+          setEditAltPhone(data.altPhone || "");
+          setEditOccupation(data.occupation || "");
+        }
         setLoading(false);
       });
 
@@ -98,6 +121,33 @@ export default function CustomerDashboardPage() {
       setPwChangeError(getFriendlyAuthError(err));
     }
     setPwChangeSubmitting(false);
+  };
+
+  // ---- নতুন: প্রোফাইল তথ্য আপডেট করা ----
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    setProfileError("");
+    setProfileSuccess("");
+    setProfileSubmitting(true);
+    try {
+      const digits = normalizePhone(customerData?.phone || auth.currentUser?.phoneNumber || "");
+      await updateDoc(doc(db, "customers", digits), {
+        name: editName,
+        address: {
+          street: editStreet,
+          city: editCity,
+          state: editState,
+          pincode: editPincode,
+        },
+        altPhone: editAltPhone || null,
+        occupation: editOccupation || null,
+      });
+      setProfileSuccess("✅ প্রোফাইল আপডেট হয়েছে।");
+    } catch (err) {
+      console.error(err);
+      setProfileError("আপডেট করা যায়নি, আবার চেষ্টা করুন।");
+    }
+    setProfileSubmitting(false);
   };
 
   const respond = async (txn, decision) => {
@@ -189,9 +239,69 @@ export default function CustomerDashboardPage() {
         </div>
       </div>
 
-      {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
+      {/* ---- নতুন: সেটিংস প্যানেল (প্রোফাইল এডিট + পাসওয়ার্ড বদলানো) ---- */}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, marginTop: 12, borderRadius: 6 }}>
+          <h3 style={{ marginTop: 0 }}>✏️ প্রোফাইল তথ্য বদলান</h3>
+          <form onSubmit={handleUpdateProfile}>
+            <input
+              type="text"
+              placeholder="পূর্ণ নাম"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="রাস্তা/এলাকা"
+              value={editStreet}
+              onChange={(e) => setEditStreet(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="শহর"
+              value={editCity}
+              onChange={(e) => setEditCity(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="রাজ্য"
+              value={editState}
+              onChange={(e) => setEditState(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="পিনকোড"
+              value={editPincode}
+              onChange={(e) => setEditPincode(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="tel"
+              placeholder="বিকল্প ফোন নাম্বার (ঐচ্ছিক)"
+              value={editAltPhone}
+              onChange={(e) => setEditAltPhone(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="পেশা (ঐচ্ছিক)"
+              value={editOccupation}
+              onChange={(e) => setEditOccupation(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
+            />
+            <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
+              {profileSubmitting ? "আপডেট হচ্ছে..." : "প্রোফাইল আপডেট করুন"}
+            </button>
+            {profileError && <p style={{ color: "red", fontSize: 13 }}>{profileError}</p>}
+            {profileSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{profileSuccess}</p>}
+          </form>
+
+          <hr style={{ margin: "16px 0", borderColor: "#333" }} />
+
           <h3 style={{ marginTop: 0 }}>🔑 পাসওয়ার্ড বদলান</h3>
           <form onSubmit={handleChangePassword}>
             <div style={{ position: "relative", marginBottom: 10 }}>
