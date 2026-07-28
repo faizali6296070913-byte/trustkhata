@@ -23,6 +23,17 @@ import {
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 
+const SHOP_TYPES = [
+  "মুদি দোকান",
+  "ঔষধের দোকান",
+  "কাপড়ের দোকান",
+  "ইলেকট্রনিক্স",
+  "হার্ডওয়্যার",
+  "খাবারের দোকান",
+  "সবজি/ফলের দোকান",
+  "অন্যান্য",
+];
+
 export default function DashboardPage() {
   const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +50,19 @@ export default function DashboardPage() {
   const [pwChangeError, setPwChangeError] = useState("");
   const [pwChangeSuccess, setPwChangeSuccess] = useState("");
   const [pwChangeSubmitting, setPwChangeSubmitting] = useState(false);
+
+  // ---- নতুন: দোকানের তথ্য এডিট করার জন্য state ----
+  const [editShopName, setEditShopName] = useState("");
+  const [editOwnerName, setEditOwnerName] = useState("");
+  const [editShopType, setEditShopType] = useState(SHOP_TYPES[0]);
+  const [editYearsInBusiness, setEditYearsInBusiness] = useState("");
+  const [editStreet, setEditStreet] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editPincode, setEditPincode] = useState("");
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [profileSuccess, setProfileSuccess] = useState("");
+  const [profileError, setProfileError] = useState("");
 
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
@@ -66,7 +90,19 @@ export default function DashboardPage() {
       }
       setUid(user.uid);
       const unsubSnap = onSnapshot(doc(db, "shopkeepers", user.uid), (snap) => {
-        setShopData(snap.data());
+        const data = snap.data();
+        setShopData(data);
+        // ---- নতুন: দোকানের তথ্য এডিট ফর্মের ইনপুট বক্স পূরণ করা ----
+        if (data) {
+          setEditShopName(data.shopName || "");
+          setEditOwnerName(data.ownerName || "");
+          setEditShopType(data.shopType || SHOP_TYPES[0]);
+          setEditYearsInBusiness(data.yearsInBusiness ?? "");
+          setEditStreet(data.address?.street || "");
+          setEditCity(data.address?.city || "");
+          setEditState(data.address?.state || "");
+          setEditPincode(data.address?.pincode || "");
+        }
         setLoading(false);
       });
       return () => unsubSnap();
@@ -207,6 +243,29 @@ export default function DashboardPage() {
   };
 
   // ---- বদলানো হয়েছে: পুরো amount না নিয়ে, দোকানদার যত টাকা পেয়েছেন সেটা নিয়ে PIN তৈরি করে ----
+  // ---- নতুন: দোকানের তথ্য আপডেট করা ----
+  const handleUpdateShopProfile = async (e) => {
+    e.preventDefault();
+    setProfileError("");
+    setProfileSuccess("");
+    setProfileSubmitting(true);
+    try {
+      await updateDoc(doc(db, "shopkeepers", uid), {
+        shopName: editShopName,
+        ownerName: editOwnerName,
+        shopType: editShopType,
+        yearsInBusiness: editYearsInBusiness ? Number(editYearsInBusiness) : null,
+        shopAddress: `${editStreet}, ${editCity}, ${editState} - ${editPincode}`,
+        address: { street: editStreet, city: editCity, state: editState, pincode: editPincode },
+      });
+      setProfileSuccess("✅ দোকানের তথ্য আপডেট হয়েছে।");
+    } catch (err) {
+      console.error(err);
+      setProfileError("আপডেট করা যায়নি, আবার চেষ্টা করুন।");
+    }
+    setProfileSubmitting(false);
+  };
+
   const markAsPaid = async (txn) => {
     const remaining = txn.amount - (txn.amountPaid || 0);
     const enteredRaw = paymentInputs[txn.id];
@@ -332,6 +391,78 @@ export default function DashboardPage() {
       {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, borderRadius: 6 }}>
+          <h3 style={{ marginTop: 0 }}>✏️ দোকানের তথ্য বদলান</h3>
+          <form onSubmit={handleUpdateShopProfile}>
+            <input
+              type="text"
+              placeholder="দোকানের নাম"
+              value={editShopName}
+              onChange={(e) => setEditShopName(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="মালিকের নাম"
+              value={editOwnerName}
+              onChange={(e) => setEditOwnerName(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <select
+              value={editShopType}
+              onChange={(e) => setEditShopType(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            >
+              {SHOP_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              placeholder="কতদিন ধরে ব্যবসা করছেন (বছর)"
+              value={editYearsInBusiness}
+              onChange={(e) => setEditYearsInBusiness(e.target.value)}
+              min="0"
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="রাস্তা/এলাকা"
+              value={editStreet}
+              onChange={(e) => setEditStreet(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="শহর"
+              value={editCity}
+              onChange={(e) => setEditCity(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="রাজ্য"
+              value={editState}
+              onChange={(e) => setEditState(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+            />
+            <input
+              type="text"
+              placeholder="পিনকোড"
+              value={editPincode}
+              onChange={(e) => setEditPincode(e.target.value)}
+              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
+            />
+            <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
+              {profileSubmitting ? "আপডেট হচ্ছে..." : "দোকানের তথ্য আপডেট করুন"}
+            </button>
+            {profileError && <p style={{ color: "red", fontSize: 13 }}>{profileError}</p>}
+            {profileSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{profileSuccess}</p>}
+          </form>
+
+          <hr style={{ margin: "16px 0", borderColor: "#333" }} />
+
           <h3 style={{ marginTop: 0 }}>🔑 পাসওয়ার্ড বদলান</h3>
           <form onSubmit={handleChangePassword}>
             <div style={{ position: "relative", marginBottom: 10 }}>
