@@ -49,10 +49,16 @@ export default function CustomerOnboardingPage() {
       const digits = normalizePhone(user.phoneNumber);
       const pseudoEmail = `${digits}@halkhata.app`;
 
-      // ফোন নাম্বারের সাথে email/password লগইন যুক্ত করা
-      const credential = EmailAuthProvider.credential(pseudoEmail, password);
-      await linkWithCredential(user, credential);
+      // ---- বদলানো হয়েছে: পাসওয়ার্ড link করার চেষ্টা আলাদাভাবে, ব্যর্থ হলেও থেমে যাবে না ----
+      try {
+        const credential = EmailAuthProvider.credential(pseudoEmail, password);
+        await linkWithCredential(user, credential);
+      } catch (linkErr) {
+        console.warn("Password link skipped:", linkErr.code);
+        // ইতিমধ্যে link করা থাকলে বা অন্য কোনো linking সমস্যা হলেও, প্রোফাইল তথ্য সেভ চালিয়ে যাওয়া হবে
+      }
 
+      // ---- এই অংশটুকু সবসময় চলবে, linking ব্যর্থ হলেও ----
       await updateDoc(doc(db, "customers", digits), {
         name,
         address: {
@@ -69,11 +75,7 @@ export default function CustomerOnboardingPage() {
       window.location.href = "/customer-dashboard";
     } catch (err) {
       console.error(err);
-      if (err.code === "auth/email-already-in-use" || err.code === "auth/credential-already-in-use") {
-        setError("এই ফোন নাম্বারের জন্য আগেই পাসওয়ার্ড সেট করা আছে।");
-      } else {
-        setError("সেভ করা যায়নি, আবার চেষ্টা করুন।");
-      }
+      setError("সেভ করা যায়নি, আবার চেষ্টা করুন।");
       setSubmitting(false);
     }
   };
