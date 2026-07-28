@@ -239,7 +239,39 @@ export default function CustomerDashboardPage() {
         </div>
       </div>
 
-      {/* ---- নতুন: সেটিংস প্যানেল (প্রোফাইল এডিট + পাসওয়ার্ড বদলানো) ---- */}
+      {/* ---- নতুন: নতুন ক্রেডিট রিকোয়েস্ট থাকলে সবার ওপরে বড় করে দেখানো, WhatsApp ছাড়াই সরাসরি Approve/Reject করা যাবে ---- */}
+      {transactions.filter((t) => t.status === "pending_approval").length > 0 && (
+        <div style={{ background: "#3b2a00", border: "2px solid #f59e0b", padding: 14, marginTop: 14, borderRadius: 8 }}>
+          <h3 style={{ margin: "0 0 10px 0", color: "#fbbf24" }}>
+            🔔 নতুন ক্রেডিট রিকোয়েস্ট এসেছে
+          </h3>
+          {transactions
+            .filter((t) => t.status === "pending_approval")
+            .map((txn) => (
+              <div key={txn.id} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6 }}>
+                <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {txn.shopName}</p>
+                <p style={{ margin: "4px 0" }}>
+                  পরিমাণ: <span style={{ fontWeight: "bold" }}>₹{txn.amount}</span>
+                  {txn.itemDetails ? ` — ${txn.itemDetails}` : ""}
+                </p>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button
+                    onClick={() => respond(txn, "approved")}
+                    style={{ flex: 1, padding: 10, background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
+                  >
+                    ✅ অ্যাপ্রুভ করুন
+                  </button>
+                  <button
+                    onClick={() => respond(txn, "rejected")}
+                    style={{ flex: 1, padding: 10, background: "#dc2626", color: "white", border: "none", fontWeight: "bold" }}
+                  >
+                    ❌ বাতিল করুন
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, marginTop: 12, borderRadius: 6 }}>
           <h3 style={{ marginTop: 0 }}>✏️ প্রোফাইল তথ্য বদলান</h3>

@@ -70,6 +70,7 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [lastLink, setLastLink] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [lastPhone, setLastPhone] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -589,26 +590,52 @@ export default function DashboardPage() {
       {successMsg && <p style={{ color: "green" }}>{successMsg}</p>}
 
       {lastLink && (
-        <a
-          href={buildWhatsAppLink(
-            lastPhone,
-            `আপনার একটি বাকি অনুরোধ এসেছে। অনুমোদন বা প্রত্যাখ্যান করতে এখানে ক্লিক করুন: ${lastLink}`
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "block",
-            textAlign: "center",
-            marginTop: 10,
-            padding: 10,
-            background: "#25D366",
-            color: "white",
-            fontWeight: "bold",
-            textDecoration: "none",
-          }}
-        >
-          📱 WhatsApp এ পাঠান
-        </a>
+        <>
+          <a
+            href={buildWhatsAppLink(
+              lastPhone,
+              `আপনার একটি বাকি অনুরোধ এসেছে। অনুমোদন বা প্রত্যাখ্যান করতে এখানে ক্লিক করুন: ${lastLink}`
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "block",
+              textAlign: "center",
+              marginTop: 10,
+              padding: 10,
+              background: "#25D366",
+              color: "white",
+              fontWeight: "bold",
+              textDecoration: "none",
+            }}
+          >
+            📱 WhatsApp এ পাঠান
+          </a>
+          {/* ---- নতুন: কাস্টমারের WhatsApp না থাকলে, লিংক কপি করে SMS/অন্য মাধ্যমে পাঠানোর সুবিধা ---- */}
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(lastLink);
+              setLinkCopied(true);
+              setTimeout(() => setLinkCopied(false), 2000);
+            }}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "center",
+              marginTop: 8,
+              padding: 10,
+              background: "#333",
+              color: "white",
+              border: "1px solid #666",
+              fontWeight: "bold",
+            }}
+          >
+            {linkCopied ? "✅ কপি হয়েছে!" : "🔗 লিংক কপি করুন (WhatsApp না থাকলে)"}
+          </button>
+          <p style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
+            কাস্টমার নিজের একাউন্টে লগইন করলেও এই রিকোয়েস্ট সরাসরি দেখতে পাবেন।
+          </p>
+        </>
       )}
 
       <h3 style={{ marginTop: 30 }}>👤 কাস্টমার অনুযায়ী হিসাব</h3>
