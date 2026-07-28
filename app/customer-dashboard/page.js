@@ -157,7 +157,7 @@ export default function CustomerDashboardPage() {
   const shopSummary = {};
   transactions.forEach((t) => {
     if (!shopSummary[t.shopId]) {
-      shopSummary[t.shopId] = { shopName: t.shopName, outstanding: 0, paid: 0 };
+      shopSummary[t.shopId] = { shopId: t.shopId, shopName: t.shopName, outstanding: 0, paid: 0 };
     }
     if (outstandingStatuses.includes(t.status)) {
       shopSummary[t.shopId].outstanding += getRemaining(t);
@@ -306,8 +306,12 @@ export default function CustomerDashboardPage() {
       <h3 style={{ marginTop: 30 }}>দোকান অনুযায়ী হিসাব</h3>
       {shopList.length === 0 && <p>কোনো দোকানে লেনদেন নেই।</p>}
       {shopList.map((shop, idx) => (
-        <div key={idx} style={{ background: "#1a1a1a", padding: 10, marginBottom: 8 }}>
-          <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName}</p>
+        <div
+          key={idx}
+          onClick={() => (window.location.href = `/shop-ledger/${shop.shopId}`)}
+          style={{ background: "#1a1a1a", padding: 10, marginBottom: 8, cursor: "pointer" }}
+        >
+          <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span></p>
           <p style={{ margin: 0, fontSize: 13 }}>
             বাকি: <span style={{ color: shop.outstanding > 0 ? "orange" : "#999" }}>₹{shop.outstanding}</span>
             {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{shop.paid}</span>

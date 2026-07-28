@@ -480,6 +480,46 @@ export default function DashboardPage() {
         </a>
       )}
 
+      <h3 style={{ marginTop: 30 }}>👤 কাস্টমার অনুযায়ী হিসাব</h3>
+      {(() => {
+        const customerSummary = {};
+        transactions.forEach((t) => {
+          if (!customerSummary[t.customerId]) {
+            customerSummary[t.customerId] = {
+              customerId: t.customerId,
+              customerPhone: t.customerPhone,
+              outstanding: 0,
+              paid: 0,
+            };
+          }
+          const remaining = (t.amount || 0) - (t.amountPaid || 0);
+          if (["approved", "awaiting_pin_confirmation"].includes(t.status)) {
+            customerSummary[t.customerId].outstanding += remaining;
+            customerSummary[t.customerId].paid += t.amountPaid || 0;
+          }
+          if (t.status === "paid") {
+            customerSummary[t.customerId].paid += t.amount || 0;
+          }
+        });
+        const list = Object.values(customerSummary);
+        if (list.length === 0) return <p style={{ color: "#999" }}>কোনো কাস্টমার নেই।</p>;
+        return list.map((c) => (
+          <div
+            key={c.customerId}
+            onClick={() => (window.location.href = `/customer-ledger/${c.customerId}`)}
+            style={{ background: "#1a1a1a", padding: 10, marginBottom: 8, cursor: "pointer" }}
+          >
+            <p style={{ margin: 0, fontWeight: "bold" }}>
+              👤 {c.customerPhone} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span>
+            </p>
+            <p style={{ margin: 0, fontSize: 13 }}>
+              বাকি: <span style={{ color: c.outstanding > 0 ? "orange" : "#999" }}>₹{c.outstanding}</span>
+              {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{c.paid}</span>
+            </p>
+          </div>
+        ));
+      })()}
+
       <h3 style={{ marginTop: 30 }}>সাম্প্রতিক রিকোয়েস্টগুলো</h3>
       {transactions.length === 0 && <p>কোনো রিকোয়েস্ট নেই।</p>}
       {transactions.map((txn) => {
