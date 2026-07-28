@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebaseAdmin";
+import { verifyIdTokenREST, setPasswordByEmailREST } from "@/lib/firebaseAdmin";
 import { normalizePhone } from "@/lib/phone";
 
 export async function POST(request) {
@@ -15,8 +15,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।" }, { status: 400 });
     }
 
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const phoneNumber = decoded.phone_number;
+    const user = await verifyIdTokenREST(idToken);
+    const phoneNumber = user.phoneNumber;
 
     if (!phoneNumber) {
       return NextResponse.json({ error: "ফোন যাচাই পাওয়া যায়নি।" }, { status: 400 });
@@ -25,12 +25,7 @@ export async function POST(request) {
     const digits = normalizePhone(phoneNumber);
     const pseudoEmail = `${digits}@halkhata.app`;
 
-    try {
-      const targetUser = await adminAuth.getUserByEmail(pseudoEmail);
-      await adminAuth.updateUser(targetUser.uid, { password: newPassword });
-    } catch (err) {
-      await adminAuth.createUser({ email: pseudoEmail, password: newPassword });
-    }
+    await setPasswordByEmailREST(pseudoEmail, newPassword);
 
     return NextResponse.json({ success: true });
   } catch (err) {
