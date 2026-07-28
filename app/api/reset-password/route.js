@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { verifyIdTokenREST, setPasswordByEmailREST } from "@/lib/firebaseAdmin";
+import { verifyIdTokenREST, linkPasswordToCurrentAccount } from "@/lib/firebaseAdmin";
 import { normalizePhone } from "@/lib/phone";
 
 export async function POST(request) {
@@ -25,7 +25,8 @@ export async function POST(request) {
     const digits = normalizePhone(phoneNumber);
     const pseudoEmail = `${digits}@halkhata.app`;
 
-    await setPasswordByEmailREST(pseudoEmail, newPassword);
+    // ---- এটাই মূল পরিবর্তন: আলাদা একাউন্ট না বানিয়ে/বদলে, OTP-verified একাউন্টেই সরাসরি পাসওয়ার্ড link করা ----
+    await linkPasswordToCurrentAccount(idToken, pseudoEmail, newPassword);
 
     return NextResponse.json({ success: true });
   } catch (err) {
