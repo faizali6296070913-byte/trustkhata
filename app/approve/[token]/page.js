@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { updateCustomerScore } from "@/lib/scoring";
+import { normalizePhone } from "@/lib/phone";
 
 export default function ApprovePage() {
   const params = useParams();
@@ -13,6 +15,19 @@ export default function ApprovePage() {
   const [loading, setLoading] = useState(true);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+
+  // ---- নতুন: লগইন যাচাইয়ের জন্য state ----
+  const [authUser, setAuthUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // ---- নতুন: ব্রাউজারে ইতিমধ্যে লগইন করা আছে কিনা দেখা ----
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      setAuthChecked(true);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -54,10 +69,57 @@ export default function ApprovePage() {
     }
   };
 
-  if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
+  if (loading || !authChecked) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
   if (error) return <p style={{ padding: 20, color: "red" }}>{error}</p>;
   if (done) return <p style={{ padding: 20 }}>ধন্যবাদ! আপনার উত্তর সেভ হয়ে গেছে।</p>;
   if (approval.status !== "pending") return <p style={{ padding: 20 }}>এই রিকোয়েস্ট আগেই একশন নেওয়া হয়ে গেছে।</p>;
+
+  // ---- নতুন: শুধুমাত্র যেই কাস্টমারকে রিকোয়েস্ট পাঠানো হয়েছে, শুধু তিনিই approve/reject করতে পারবেন ----
+  const requestedDigits = normalizePhone(approval.customerPhone);
+  const loggedInDigits = authUser?.phoneNumber ? normalizePhone(authUser.phoneNumber) : null;
+  const isAuthorized = authUser && loggedInDigits === requestedDigits;
+
+  // ---- নতুন: লগইন করা না থাকলে, আগে লগইন করতে বলা হবে ----
+  if (!authUser) {
+    return (
+      <div style={{ padding: 20, maxWidth: 400, margin: "auto", textAlign: "center" }}>
+        <h2>{approval.shopName} আপনাকে ₹{approval.amount} ধার দিতে চায়</h2>
+        {approval.itemDetails && <p>বিবরণ: {approval.itemDetails}</p>}
+        <p style={{ marginTop: 20, color: "orange" }}>
+          🔒 এই রিকোয়েস্ট অনুমোদন/বাতিল করতে আগে আপনার একাউন্টে লগইন করতে হবে।
+        </p>
+        <a
+          href="/customer-login"
+          style={{
+            display: "inline-block",
+            marginTop: 12,
+            padding: "10px 20px",
+            background: "#3b82f6",
+            color: "white",
+            textDecoration: "none",
+            fontWeight: "bold",
+            borderRadius: 4,
+          }}
+        >
+          লগইন করুন
+        </a>
+        <p style={{ marginTop: 10, fontSize: 13, color: "#999" }}>
+          লগইন করার পর এই একই লিংকে (WhatsApp মেসেজ থেকে) আবার আসুন।
+        </p>
+      </div>
+    );
+  }
+
+  // ---- নতুন: লগইন করা আছে, কিন্তু এই রিকোয়েস্টের কাস্টমার না হলে আটকে দেওয়া ----
+  if (!isAuthorized) {
+    return (
+      <div style={{ padding: 20, maxWidth: 400, margin: "auto", textAlign: "center" }}>
+        <p style={{ color: "red" }}>
+          ⚠️ এই রিকোয়েস্টটি আপনার একাউন্টের জন্য নয়। শুধুমাত্র {approval.customerPhone} নম্বরের কাস্টমার এটি অনুমোদন/বাতিল করতে পারবেন।
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
