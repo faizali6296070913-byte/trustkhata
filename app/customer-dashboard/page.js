@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot, updateDoc, serverTimestamp, collection, query, where, orderBy } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, serverTimestamp, collection, query, where, orderBy, arrayUnion } from "firebase/firestore";
 import {
   onAuthStateChanged,
   signOut,
@@ -42,6 +42,11 @@ export default function CustomerDashboardPage() {
   const [profileError, setProfileError] = useState("");
   // ---- নতুন: প্রথমে শুধু সাম্প্রতিক লেনদেন দেখানো, দ্রুত লোড হওয়ার জন্য ----
   const [showAllTxns, setShowAllTxns] = useState(false);
+
+  // ---- নতুন: dashboard থেকেই সরাসরি PIN দিয়ে পেমেন্ট কনফার্ম করার জন্য state ----
+  const [pinInputs, setPinInputs] = useState({});
+  const [pinErrors, setPinErrors] = useState({});
+  const [pinConfirming, setPinConfirming] = useState({});
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -150,6 +155,54 @@ export default function CustomerDashboardPage() {
       setProfileError("আপডেট করা যায়নি, আবার চেষ্টা করুন।");
     }
     setProfileSubmitting(false);
+  };
+
+  // ---- নতুন: dashboard থেকেই সরাসরি PIN দিয়ে পেমেন্ট কনফার্ম করা (আলাদা লিংক লাগবে না) ----
+  const confirmPayment = async (txn) => {
+    const enteredPin = pinInputs[txn.id] || "";
+    setPinErrors((prev) => ({ ...prev, [txn.id]: "" }));
+
+    if (enteredPin !== txn.securityPIN) {
+      setPinErrors((prev) => ({ ...prev, [txn.id]: "ভুল PIN, আবার চেষ্টা করুন।" }));
+      return;
+    }
+
+    setPinConfirming((prev) => ({ ...prev, [txn.id]: true }));
+
+    const thisPayment = txn.pendingPaymentAmount || txn.amount;
+    const previousPaid = txn.amountPaid || 0;
+    const newAmountPaid = previousPaid + thisPayment;
+    const remaining = txn.amount - newAmountPaid;
+    const isFullyPaid = remaining <= 0;
+
+    try {
+      const updates = {
+        amountPaid: newAmountPaid,
+        payments: arrayUnion({
+          amount: thisPayment,
+          paidAt: new Date().toISOString(),
+        }),
+      };
+
+      if (isFullyPaid) {
+        updates.status = "paid";
+        updates.paidAt = serverTimestamp();
+      } else {
+        updates.status = "approved";
+      }
+
+      await updateDoc(doc(db, "transactions", txn.id), updates);
+
+      if (isFullyPaid) {
+        await updateCustomerScore(txn.customerPhone, "paid", txn.amount);
+      }
+
+      setPinInputs((prev) => ({ ...prev, [txn.id]: "" }));
+    } catch (err) {
+      console.error(err);
+      setPinErrors((prev) => ({ ...prev, [txn.id]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+    }
+    setPinConfirming((prev) => ({ ...prev, [txn.id]: false }));
   };
 
   const respond = async (txn, decision) => {
@@ -522,6 +575,36 @@ export default function CustomerDashboardPage() {
                 >
                   ❌ Reject
                 </button>
+              </div>
+            )}
+
+            {/* ---- নতুন: দোকানদার PIN জেনারেট করলে, কাস্টমার এখানেই সরাসরি PIN দিয়ে পরিশোধ কনফার্ম করতে পারবেন — আলাদা লিংক লাগবে না ---- */}
+            {txn.status === "awaiting_pin_confirmation" && (
+              <div style={{ marginTop: 8 }}>
+                <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#fbbf24" }}>
+                  দোকানদার ₹{txn.pendingPaymentAmount || txn.amount} এর জন্য PIN দিয়েছেন — সেই PIN নিচে লিখুন:
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="PIN দিন"
+                    value={pinInputs[txn.id] || ""}
+                    onChange={(e) =>
+                      setPinInputs((prev) => ({ ...prev, [txn.id]: e.target.value }))
+                    }
+                    style={{ flex: 1, padding: 8, boxSizing: "border-box" }}
+                  />
+                  <button
+                    onClick={() => confirmPayment(txn)}
+                    disabled={pinConfirming[txn.id]}
+                    style={{ padding: "8px 14px", background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
+                  >
+                    {pinConfirming[txn.id] ? "..." : "কনফার্ম"}
+                  </button>
+                </div>
+                {pinErrors[txn.id] && (
+                  <p style={{ color: "red", fontSize: 12, margin: "4px 0 0 0" }}>{pinErrors[txn.id]}</p>
+                )}
               </div>
             )}
           </div>
