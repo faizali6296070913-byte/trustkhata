@@ -89,6 +89,8 @@ export default function DashboardPage() {
   const [verifiedByMe, setVerifiedByMe] = useState(false);
   // ---- নতুন: এই কাস্টমারের অন্য/এই দোকানে কতগুলো মেয়াদ পার হওয়া (overdue) বাকি আছে ----
   const [customerOverdueCount, setCustomerOverdueCount] = useState(0);
+  // ---- নতুন: এই ফোন নম্বরে সত্যিই কোনো নিবন্ধিত কাস্টমার আছে কিনা ----
+  const [isRegisteredCustomer, setIsRegisteredCustomer] = useState(null);
 
   // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
   const [paymentInputs, setPaymentInputs] = useState({});
@@ -163,6 +165,7 @@ export default function DashboardPage() {
       setCustomerFlagged(false);
       setCustomerVerified(false);
       setCustomerOverdueCount(0);
+      setIsRegisteredCustomer(null);
       return;
     }
     setCheckingScore(true);
@@ -170,11 +173,15 @@ export default function DashboardPage() {
       try {
         const snap = await getDoc(doc(db, "customers", digits));
         if (snap.exists()) {
+          // ---- বদলানো হয়েছে: শুধু প্রকৃত নিবন্ধিত কাস্টমারদের স্কোর দেখানো হবে ----
+          setIsRegisteredCustomer(true);
           setCustomerScore(snap.data().trustScore ?? 50);
           setCustomerFlagged(snap.data().isRedFlagged === true);
           setCustomerVerified(snap.data().verifiedByShopkeeper === true);
         } else {
-          setCustomerScore(50);
+          // ---- বদলানো হয়েছে: নিবন্ধিত না হলে ডিফল্ট স্কোর দেখানো হবে না ----
+          setIsRegisteredCustomer(false);
+          setCustomerScore(null);
           setCustomerFlagged(false);
           setCustomerVerified(false);
         }
@@ -284,6 +291,7 @@ export default function DashboardPage() {
       setCustomerFlagged(false);
       setCustomerVerified(false);
       setCustomerOverdueCount(0);
+      setIsRegisteredCustomer(null);
       setVerifiedByMe(false);
     } catch (err) {
       console.error(err);
@@ -613,6 +621,13 @@ export default function DashboardPage() {
         />
 
         {checkingScore && <p style={{ fontSize: 12, color: "#999" }}>স্কোর চেক হচ্ছে...</p>}
+
+        {/* ---- নতুন: এই নম্বরে কোনো নিবন্ধিত কাস্টমার না থাকলে জানিয়ে দেওয়া ---- */}
+        {!checkingScore && isRegisteredCustomer === false && (
+          <p style={{ fontSize: 13, color: "#999", marginBottom: 10 }}>
+            ℹ️ এই নম্বরে এখনো কোনো কাস্টমার অ্যাপে নিবন্ধিত (registered) নয়।
+          </p>
+        )}
 
         {!checkingScore && customerScore !== null && (
           <div style={{ marginBottom: 10 }}>
