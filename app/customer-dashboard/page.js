@@ -40,6 +40,8 @@ export default function CustomerDashboardPage() {
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState("");
   const [profileError, setProfileError] = useState("");
+  // ---- নতুন: প্রথমে শুধু সাম্প্রতিক লেনদেন দেখানো, দ্রুত লোড হওয়ার জন্য ----
+  const [showAllTxns, setShowAllTxns] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -171,7 +173,23 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
+  // ---- নতুন: লোডিং এর সময় ফাঁকা "skeleton" আকৃতি দেখানো ----
+  if (loading)
+    return (
+      <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ width: 140, height: 26, background: "#2a2a2a", borderRadius: 4 }} />
+          <div style={{ width: 80, height: 36, background: "#2a2a2a", borderRadius: 4 }} />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} style={{ height: 60, background: "#1a1a1a", borderRadius: 6, marginBottom: 10 }} />
+        ))}
+        <style>{`
+          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+          div[style*="background: #2a2a2a"], div[style*="background: #1a1a1a"] { animation: pulse 1.5s ease-in-out infinite; }
+        `}</style>
+      </div>
+    );
 
   const getScoreTier = (score) => {
     if (score >= 70) return { label: "🟢 বিশ্বস্ত কাস্টমার", color: "green" };
@@ -463,7 +481,7 @@ export default function CustomerDashboardPage() {
 
       <h3 style={{ marginTop: 30 }}>সব লেনদেনের বিস্তারিত</h3>
       {transactions.length === 0 && <p>কোনো রেকর্ড নেই।</p>}
-      {transactions.map((txn) => {
+      {(showAllTxns ? transactions : transactions.slice(0, 30)).map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
         const remaining = getRemaining(txn);
         return (
@@ -509,6 +527,16 @@ export default function CustomerDashboardPage() {
           </div>
         );
       })}
+
+      {/* ---- নতুন: ৩০টার বেশি লেনদেন থাকলে "আরও দেখুন" বাটন ---- */}
+      {!showAllTxns && transactions.length > 30 && (
+        <button
+          onClick={() => setShowAllTxns(true)}
+          style={{ width: "100%", padding: 10, background: "#333", color: "white", border: "1px solid #666", marginTop: 8 }}
+        >
+          আরও দেখুন ({transactions.length - 30} টি বাকি)
+        </button>
+      )}
     </div>
   );
 }

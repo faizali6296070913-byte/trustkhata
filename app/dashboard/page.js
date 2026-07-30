@@ -82,6 +82,8 @@ export default function DashboardPage() {
 
   // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
   const [paymentInputs, setPaymentInputs] = useState({});
+  // ---- নতুন: প্রথমে শুধু সাম্প্রতিক লেনদেন দেখানো, দ্রুত লোড হওয়ার জন্য ----
+  const [showAllTxns, setShowAllTxns] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
@@ -341,7 +343,23 @@ export default function DashboardPage() {
     setPwChangeSubmitting(false);
   };
 
-  if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
+  // ---- নতুন: লোডিং এর সময় ফাঁকা "skeleton" আকৃতি দেখানো, সাধারণ লেখার বদলে — এতে অ্যাপ দ্রুত মনে হয় ----
+  if (loading)
+    return (
+      <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ width: 140, height: 26, background: "#2a2a2a", borderRadius: 4 }} />
+          <div style={{ width: 80, height: 36, background: "#2a2a2a", borderRadius: 4 }} />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} style={{ height: 60, background: "#1a1a1a", borderRadius: 6, marginBottom: 10 }} />
+        ))}
+        <style>{`
+          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+          div[style*="background: #2a2a2a"], div[style*="background: #1a1a1a"] { animation: pulse 1.5s ease-in-out infinite; }
+        `}</style>
+      </div>
+    );
 
   if (shopData?.status === "pending_review") {
     return (
@@ -680,7 +698,7 @@ export default function DashboardPage() {
 
       <h3 style={{ marginTop: 30 }}>সাম্প্রতিক রিকোয়েস্টগুলো</h3>
       {transactions.length === 0 && <p>কোনো রিকোয়েস্ট নেই।</p>}
-      {transactions.map((txn) => {
+      {(showAllTxns ? transactions : transactions.slice(0, 30)).map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
         const approveLink = `/approve/${txn.approvalToken}`;
         const amountPaid = txn.amountPaid || 0;
@@ -803,6 +821,16 @@ export default function DashboardPage() {
           </div>
         );
       })}
+
+      {/* ---- নতুন: ৩০টার বেশি রিকোয়েস্ট থাকলে "আরও দেখুন" বাটন ---- */}
+      {!showAllTxns && transactions.length > 30 && (
+        <button
+          onClick={() => setShowAllTxns(true)}
+          style={{ width: "100%", padding: 10, background: "#333", color: "white", border: "1px solid #666", marginTop: 8 }}
+        >
+          আরও দেখুন ({transactions.length - 30} টি বাকি)
+        </button>
+      )}
     </div>
   );
 }
