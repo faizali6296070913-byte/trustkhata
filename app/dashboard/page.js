@@ -71,6 +71,10 @@ export default function DashboardPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [lastLink, setLastLink] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  // ---- নতুন: কাস্টমারের পাঠানো "মোট বাকি মেটান" রিকোয়েস্টের জন্য state ----
+  const [settlementRequests, setSettlementRequests] = useState([]);
+  const [settleAccepting, setSettleAccepting] = useState({});
   const [lastPhone, setLastPhone] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -123,6 +127,16 @@ export default function DashboardPage() {
     const unsub = onSnapshot(q, (snapshot) => {
       const txns = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setTransactions(txns);
+    });
+    return () => unsub();
+  }, [uid]);
+
+  // ---- নতুন: কাস্টমারদের পাঠানো "মোট বাকি মেটান" রিকোয়েস্ট শোনা ----
+  useEffect(() => {
+    if (!uid) return;
+    const settleQ = query(collection(db, "settlementRequests"), where("shopId", "==", uid));
+    const unsub = onSnapshot(settleQ, (snapshot) => {
+      setSettlementRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
   }, [uid]);
@@ -267,6 +281,23 @@ export default function DashboardPage() {
       setProfileError("আপডেট করা যায়নি, আবার চেষ্টা করুন।");
     }
     setProfileSubmitting(false);
+  };
+
+  // ---- নতুন: কাস্টমারের "মোট বাকি মেটান" রিকোয়েস্ট accept করে PIN জেনারেট করা ----
+  const acceptSettlement = async (req) => {
+    setSettleAccepting((prev) => ({ ...prev, [req.id]: true }));
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    try {
+      await updateDoc(doc(db, "settlementRequests", req.id), {
+        status: "awaiting_pin",
+        pin,
+        acceptedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error(err);
+      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+    }
+    setSettleAccepting((prev) => ({ ...prev, [req.id]: false }));
   };
 
   const markAsPaid = async (txn) => {
@@ -654,6 +685,36 @@ export default function DashboardPage() {
             কাস্টমার নিজের একাউন্টে লগইন করলেও এই রিকোয়েস্ট সরাসরি দেখতে পাবেন।
           </p>
         </>
+      )}
+
+      {/* ---- নতুন: কাস্টমারদের পাঠানো "মোট বাকি মেটান" রিকোয়েস্ট ---- */}
+      {settlementRequests.filter((r) => r.status === "pending" || r.status === "awaiting_pin").length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h3>💰 বাকি মেটানোর অনুরোধ</h3>
+          {settlementRequests
+            .filter((r) => r.status === "pending" || r.status === "awaiting_pin")
+            .map((req) => (
+              <div key={req.id} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6 }}>
+                <p style={{ margin: 0 }}>
+                  👤 {req.customerPhone} — <span style={{ fontWeight: "bold" }}>₹{req.amount}</span> মেটাতে চান
+                </p>
+                {req.status === "pending" && (
+                  <button
+                    onClick={() => acceptSettlement(req)}
+                    disabled={settleAccepting[req.id]}
+                    style={{ width: "100%", padding: 8, marginTop: 8, background: "#16a34a", color: "white", border: "none" }}
+                  >
+                    {settleAccepting[req.id] ? "..." : "✅ অ্যাপ্রুভ করে PIN তৈরি করুন"}
+                  </button>
+                )}
+                {req.status === "awaiting_pin" && (
+                  <p style={{ margin: "8px 0 0 0", fontSize: 14, color: "#fbbf24" }}>
+                    🔑 PIN: <strong>{req.pin}</strong> — কাস্টমারকে এই PIN বলুন
+                  </p>
+                )}
+              </div>
+            ))}
+        </div>
       )}
 
       <h3 style={{ marginTop: 30 }}>👤 কাস্টমার অনুযায়ী হিসাব</h3>

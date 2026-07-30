@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot, updateDoc, serverTimestamp, collection, query, where, orderBy, arrayUnion } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, setDoc, serverTimestamp, collection, query, where, orderBy, arrayUnion } from "firebase/firestore";
 import {
   onAuthStateChanged,
   signOut,
@@ -12,6 +12,7 @@ import {
 import { updateCustomerScore } from "@/lib/scoring";
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
+import { executeFifoSettlement } from "@/lib/settlement";
 
 export default function CustomerDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,15 @@ export default function CustomerDashboardPage() {
   const [pinErrors, setPinErrors] = useState({});
   const [pinConfirming, setPinConfirming] = useState({});
 
+  // ---- নতুন: "মোট বাকি মেটান" (FIFO) ফিচারের জন্য state ----
+  const [settlementRequests, setSettlementRequests] = useState([]);
+  const [settleAmountInputs, setSettleAmountInputs] = useState({});
+  const [settleFormOpenFor, setSettleFormOpenFor] = useState(null);
+  const [settleSubmitting, setSettleSubmitting] = useState(false);
+  const [settleError, setSettleError] = useState({});
+  const [settlePinInputs, setSettlePinInputs] = useState({});
+  const [settleConfirming, setSettleConfirming] = useState({});
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -81,9 +91,19 @@ export default function CustomerDashboardPage() {
         setTransactions(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
       });
 
+      // ---- নতুন: "মোট বাকি মেটান" রিকোয়েস্টের জন্য listener ----
+      const settleQ = query(
+        collection(db, "settlementRequests"),
+        where("customerId", "==", digits)
+      );
+      const unsubSettle = onSnapshot(settleQ, (snapshot) => {
+        setSettlementRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      });
+
       return () => {
         unsubCustomer();
         unsubTxns();
+        unsubSettle();
       };
     });
     return () => unsubAuth();
@@ -158,6 +178,73 @@ export default function CustomerDashboardPage() {
   };
 
   // ---- নতুন: dashboard থেকেই সরাসরি PIN দিয়ে পেমেন্ট কনফার্ম করা (আলাদা লিংক লাগবে না) ----
+  // ---- নতুন: "মোট বাকি মেটান" রিকোয়েস্ট পাঠানো (কাস্টমার শুরু করবে) ----
+  const sendSettlementRequest = async (shop) => {
+    const raw = settleAmountInputs[shop.shopId];
+    const amount = Number(raw);
+    setSettleError((prev) => ({ ...prev, [shop.shopId]: "" }));
+
+    if (!raw || isNaN(amount) || amount <= 0) {
+      setSettleError((prev) => ({ ...prev, [shop.shopId]: "সঠিক পরিমাণ লিখুন।" }));
+      return;
+    }
+    if (amount > shop.outstanding) {
+      setSettleError((prev) => ({
+        ...prev,
+        [shop.shopId]: `সর্বোচ্চ ₹${shop.outstanding} মেটানো যাবে।`,
+      }));
+      return;
+    }
+
+    setSettleSubmitting(true);
+    try {
+      const digits = normalizePhone(customerData?.phone || auth.currentUser?.phoneNumber || "");
+      await setDoc(doc(collection(db, "settlementRequests")), {
+        shopId: shop.shopId,
+        shopName: shop.shopName,
+        customerId: digits,
+        customerPhone: customerData?.phone || "",
+        amount,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      setSettleAmountInputs((prev) => ({ ...prev, [shop.shopId]: "" }));
+      setSettleFormOpenFor(null);
+    } catch (err) {
+      console.error(err);
+      setSettleError((prev) => ({ ...prev, [shop.shopId]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+    }
+    setSettleSubmitting(false);
+  };
+
+  // ---- নতুন: দোকানদারের দেওয়া PIN দিয়ে "মোট বাকি মেটান" কনফার্ম করা — FIFO অনুযায়ী automatically পুরনো এন্ট্রি থেকে কাটা হবে ----
+  const confirmSettlement = async (req) => {
+    const enteredPin = settlePinInputs[req.id] || "";
+    setSettleError((prev) => ({ ...prev, [req.id]: "" }));
+
+    if (enteredPin !== req.pin) {
+      setSettleError((prev) => ({ ...prev, [req.id]: "ভুল PIN, আবার চেষ্টা করুন।" }));
+      return;
+    }
+
+    setSettleConfirming((prev) => ({ ...prev, [req.id]: true }));
+    try {
+      await executeFifoSettlement(req.shopId, req.customerId, req.amount, req.customerPhone);
+      await updateDoc(doc(db, "settlementRequests", req.id), {
+        status: "completed",
+        completedAt: serverTimestamp(),
+      });
+      setSettlePinInputs((prev) => ({ ...prev, [req.id]: "" }));
+    } catch (err) {
+      console.error(err);
+      setSettleError((prev) => ({
+        ...prev,
+        [req.id]: err.message || "সমস্যা হয়েছে, আবার চেষ্টা করুন।",
+      }));
+    }
+    setSettleConfirming((prev) => ({ ...prev, [req.id]: false }));
+  };
+
   const confirmPayment = async (txn) => {
     const enteredPin = pinInputs[txn.id] || "";
     setPinErrors((prev) => ({ ...prev, [txn.id]: "" }));
@@ -518,19 +605,106 @@ export default function CustomerDashboardPage() {
 
       <h3 style={{ marginTop: 30 }}>দোকান অনুযায়ী হিসাব</h3>
       {shopList.length === 0 && <p>কোনো দোকানে লেনদেন নেই।</p>}
-      {shopList.map((shop, idx) => (
-        <div
-          key={idx}
-          onClick={() => (window.location.href = `/shop-ledger/${shop.shopId}`)}
-          style={{ background: "#1a1a1a", padding: 10, marginBottom: 8, cursor: "pointer" }}
-        >
-          <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span></p>
-          <p style={{ margin: 0, fontSize: 13 }}>
-            বাকি: <span style={{ color: shop.outstanding > 0 ? "orange" : "#999" }}>₹{shop.outstanding}</span>
-            {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{shop.paid}</span>
-          </p>
-        </div>
-      ))}
+      {shopList.map((shop, idx) => {
+        // ---- নতুন: এই দোকানের জন্য চলমান settlement request (যদি থাকে) খুঁজে বের করা ----
+        const activeSettle = settlementRequests.find(
+          (r) => r.shopId === shop.shopId && (r.status === "pending" || r.status === "awaiting_pin")
+        );
+
+        return (
+          <div key={idx} style={{ background: "#1a1a1a", padding: 10, marginBottom: 8 }}>
+            <div onClick={() => (window.location.href = `/shop-ledger/${shop.shopId}`)} style={{ cursor: "pointer" }}>
+              <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span></p>
+              <p style={{ margin: 0, fontSize: 13 }}>
+                বাকি: <span style={{ color: shop.outstanding > 0 ? "orange" : "#999" }}>₹{shop.outstanding}</span>
+                {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{shop.paid}</span>
+              </p>
+            </div>
+
+            {/* ---- নতুন: মোট বাকি একসাথে মেটানোর অনুরোধ পাঠানো (FIFO) ---- */}
+            {shop.outstanding > 0 && !activeSettle && (
+              <div style={{ marginTop: 8 }}>
+                {settleFormOpenFor !== shop.shopId ? (
+                  <button
+                    onClick={() => setSettleFormOpenFor(shop.shopId)}
+                    style={{ width: "100%", padding: 8, background: "#1e3a8a", color: "white", border: "none" }}
+                  >
+                    💰 মোট বাকি মেটান
+                  </button>
+                ) : (
+                  <div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder={`কত টাকা দিচ্ছেন (সর্বোচ্চ ₹${shop.outstanding})`}
+                      value={settleAmountInputs[shop.shopId] || ""}
+                      onChange={(e) =>
+                        setSettleAmountInputs((prev) => ({ ...prev, [shop.shopId]: e.target.value }))
+                      }
+                      style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => sendSettlementRequest(shop)}
+                        disabled={settleSubmitting}
+                        style={{ flex: 1, padding: 8, background: "#16a34a", color: "white", border: "none" }}
+                      >
+                        {settleSubmitting ? "..." : "রিকোয়েস্ট পাঠান"}
+                      </button>
+                      <button
+                        onClick={() => setSettleFormOpenFor(null)}
+                        style={{ padding: "8px 14px", background: "#333", color: "white", border: "1px solid #666" }}
+                      >
+                        বাতিল
+                      </button>
+                    </div>
+                    {settleError[shop.shopId] && (
+                      <p style={{ color: "red", fontSize: 12, margin: "4px 0 0 0" }}>{settleError[shop.shopId]}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---- নতুন: রিকোয়েস্ট পাঠানো হয়েছে, দোকানদারের accept করার অপেক্ষায় ---- */}
+            {activeSettle?.status === "pending" && (
+              <p style={{ marginTop: 8, fontSize: 13, color: "#fbbf24" }}>
+                ⏳ ₹{activeSettle.amount} মেটানোর অনুরোধ পাঠানো হয়েছে, দোকানদারের অনুমোদনের অপেক্ষায়।
+              </p>
+            )}
+
+            {/* ---- নতুন: দোকানদার PIN দিয়েছেন, কাস্টমার এখানেই PIN দিয়ে কনফার্ম করবেন ---- */}
+            {activeSettle?.status === "awaiting_pin" && (
+              <div style={{ marginTop: 8, background: "#3b2a00", padding: 10, borderRadius: 6 }}>
+                <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#fbbf24" }}>
+                  দোকানদার ₹{activeSettle.amount} এর জন্য PIN দিয়েছেন — সেই PIN নিচে লিখুন:
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="PIN দিন"
+                    value={settlePinInputs[activeSettle.id] || ""}
+                    onChange={(e) =>
+                      setSettlePinInputs((prev) => ({ ...prev, [activeSettle.id]: e.target.value }))
+                    }
+                    style={{ flex: 1, padding: 8, boxSizing: "border-box" }}
+                  />
+                  <button
+                    onClick={() => confirmSettlement(activeSettle)}
+                    disabled={settleConfirming[activeSettle.id]}
+                    style={{ padding: "8px 14px", background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
+                  >
+                    {settleConfirming[activeSettle.id] ? "..." : "কনফার্ম"}
+                  </button>
+                </div>
+                {settleError[activeSettle.id] && (
+                  <p style={{ color: "red", fontSize: 12, margin: "4px 0 0 0" }}>{settleError[activeSettle.id]}</p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       <h3 style={{ marginTop: 30 }}>সব লেনদেনের বিস্তারিত</h3>
       {transactions.length === 0 && <p>কোনো রেকর্ড নেই।</p>}
