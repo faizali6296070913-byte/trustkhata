@@ -5,6 +5,7 @@ import {
   doc,
   onSnapshot,
   getDoc,
+  getDocs,
   collection,
   setDoc,
   updateDoc,
@@ -22,6 +23,7 @@ import {
 } from "firebase/auth";
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
+import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
 
 const SHOP_TYPES = [
   "মুদি দোকান",
@@ -67,6 +69,8 @@ export default function DashboardPage() {
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [itemDetails, setItemDetails] = useState("");
+  // ---- নতুন: এই কাস্টমার কত দিনের মধ্যে মেটাবেন, দোকানদার নিজে ঠিক করবেন ----
+  const [dueDays, setDueDays] = useState("30");
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [lastLink, setLastLink] = useState(null);
@@ -83,6 +87,8 @@ export default function DashboardPage() {
   const [customerVerified, setCustomerVerified] = useState(false);
   const [checkingScore, setCheckingScore] = useState(false);
   const [verifiedByMe, setVerifiedByMe] = useState(false);
+  // ---- নতুন: এই কাস্টমারের অন্য/এই দোকানে কতগুলো মেয়াদ পার হওয়া (overdue) বাকি আছে ----
+  const [customerOverdueCount, setCustomerOverdueCount] = useState(0);
 
   // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
   const [paymentInputs, setPaymentInputs] = useState({});
@@ -141,12 +147,22 @@ export default function DashboardPage() {
     return () => unsub();
   }, [uid]);
 
+  // ---- নতুন: dashboard লোড হওয়ার সময় মেয়াদ পার হওয়া এন্ট্রিগুলোর জন্য score penalty চেক করা ----
+  useEffect(() => {
+    transactions
+      .filter((t) => t.status === "approved" && isOverdue(t))
+      .forEach((t) => {
+        checkAndApplyOverduePenalty(t).catch(() => {});
+      });
+  }, [transactions]);
+
   useEffect(() => {
     const digits = normalizePhone(phone);
     if (digits.length < 10) {
       setCustomerScore(null);
       setCustomerFlagged(false);
       setCustomerVerified(false);
+      setCustomerOverdueCount(0);
       return;
     }
     setCheckingScore(true);
@@ -162,6 +178,18 @@ export default function DashboardPage() {
           setCustomerFlagged(false);
           setCustomerVerified(false);
         }
+
+        // ---- নতুন: এই কাস্টমারের (যেকোনো দোকানের) মেয়াদ পার হওয়া বাকি আছে কিনা চেক করা ----
+        const overdueQ = query(
+          collection(db, "transactions"),
+          where("customerId", "==", digits),
+          where("status", "==", "approved")
+        );
+        const overdueSnap = await getDocs(overdueQ);
+        const overdueTxns = overdueSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((t) => isOverdue(t));
+        setCustomerOverdueCount(overdueTxns.length);
       } catch (err) {
         console.error(err);
         setCustomerScore(null);
@@ -215,6 +243,8 @@ export default function DashboardPage() {
           status: "pending_approval",
           approvalToken: token,
           verifiedByShopkeeper: verifiedByMe,
+          dueDays: Number(dueDays) || 30, // ---- নতুন: কতদিনের মধ্যে মেটাতে হবে (দোকানদার নির্ধারিত) ----
+          overduePenaltiesApplied: 0, // ---- নতুন: এখন পর্যন্ত কতবার overdue penalty দেওয়া হয়েছে ----
           createdAt: now,
           approvedAt: null,
           rejectedAt: null,
@@ -249,9 +279,11 @@ export default function DashboardPage() {
       setPhone("");
       setAmount("");
       setItemDetails("");
+      setDueDays("30");
       setCustomerScore(null);
       setCustomerFlagged(false);
       setCustomerVerified(false);
+      setCustomerOverdueCount(0);
       setVerifiedByMe(false);
     } catch (err) {
       console.error(err);
@@ -602,6 +634,12 @@ export default function DashboardPage() {
                 ⚠️ Red Flag — এই কাস্টমার বারবার রিকোয়েস্ট রিজেক্ট করেছে
               </p>
             )}
+            {/* ---- নতুন: এই কাস্টমারের মেয়াদ পার হওয়া (overdue) বাকি থাকলে সতর্কতা ---- */}
+            {customerOverdueCount > 0 && (
+              <p style={{ fontSize: 13, margin: "4px 0 0 0", color: "#f97316", fontWeight: "bold" }}>
+                ⚠️ এই কাস্টমারের {customerOverdueCount}টা বাকি মেয়াদ পার হয়ে গেছে (এই বা অন্য দোকানে) — সাবধানে বাকি দিন
+              </p>
+            )}
           </div>
         )}
 
@@ -611,6 +649,18 @@ export default function DashboardPage() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           required
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+        />
+        {/* ---- নতুন: কতদিনের মধ্যে মেটাতে হবে, দোকানদার নিজে ঠিক করবেন ---- */}
+        <label style={{ fontSize: 13, color: "#999", display: "block", marginBottom: 4 }}>
+          কতদিনের মধ্যে মেটাতে হবে (দিন)
+        </label>
+        <input
+          type="number"
+          placeholder="যেমন ৩০"
+          value={dueDays}
+          onChange={(e) => setDueDays(e.target.value)}
+          min="1"
           style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
         />
         <textarea
@@ -784,6 +834,12 @@ export default function DashboardPage() {
             <p style={{ margin: 0 }}>
               ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
             </p>
+            {/* ---- নতুন: মেয়াদ পার হয়ে গেলে সতর্কতা দেখানো ---- */}
+            {isOverdue(txn) && (
+              <p style={{ margin: "2px 0", fontSize: 12, color: "#f97316", fontWeight: "bold" }}>
+                ⚠️ মেয়াদ পার হয়ে গেছে ({getOverdueDays(txn)} দিন)
+              </p>
+            )}
 
             {/* ---- নতুন: আংশিক পরিশোধের অগ্রগতি দেখানো ---- */}
             {amountPaid > 0 && txn.status !== "paid" && (

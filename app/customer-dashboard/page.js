@@ -13,6 +13,7 @@ import { updateCustomerScore } from "@/lib/scoring";
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 import { executeFifoSettlement } from "@/lib/settlement";
+import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
 
 export default function CustomerDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -108,6 +109,15 @@ export default function CustomerDashboardPage() {
     });
     return () => unsubAuth();
   }, []);
+
+  // ---- নতুন: dashboard লোড হওয়ার সময় নিজের মেয়াদ পার হওয়া এন্ট্রিগুলোর জন্য score penalty চেক করা ----
+  useEffect(() => {
+    transactions
+      .filter((t) => t.status === "approved" && isOverdue(t))
+      .forEach((t) => {
+        checkAndApplyOverduePenalty(t).catch(() => {});
+      });
+  }, [transactions]);
 
   const handleLogout = () => {
     signOut(auth).then(() => {
@@ -730,6 +740,13 @@ export default function CustomerDashboardPage() {
             {(txn.amountPaid || 0) > 0 && txn.status !== "paid" && (
               <p style={{ margin: 0, fontSize: 12, color: "#4ade80" }}>
                 পরিশোধিত: ₹{txn.amountPaid} | বাকি: ₹{remaining}
+              </p>
+            )}
+
+            {/* ---- নতুন: মেয়াদ পার হয়ে গেলে সতর্কতা দেখানো ---- */}
+            {isOverdue(txn) && (
+              <p style={{ margin: "2px 0", fontSize: 12, color: "#f97316", fontWeight: "bold" }}>
+                ⚠️ মেয়াদ পার হয়ে গেছে ({getOverdueDays(txn)} দিন) — দ্রুত মেটান
               </p>
             )}
 
