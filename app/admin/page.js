@@ -14,6 +14,7 @@ import {
   limit,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { isOverdue, getOverdueDays } from "@/lib/overdue";
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
@@ -27,12 +28,16 @@ export default function AdminPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [showRedFlagOnly, setShowRedFlagOnly] = useState(false);
+  // ---- নতুন: Block ফিচারের জন্য filter ও pagination ----
+  const [showBlockedOnly, setShowBlockedOnly] = useState(false);
+  const [customerPage, setCustomerPage] = useState(1);
+  const CUSTOMERS_PER_PAGE = 50;
 
-  // ---- নতুন: Detail view এর জন্য state ----
+  // ---- Detail view এর জন্য state ----
   const [selectedShop, setSelectedShop] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
 
-  // ---- নতুন: Notification এর জন্য ----
+  // ---- Notification এর জন্য ----
   const [notifPermission, setNotifPermission] = useState(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
   );
@@ -169,6 +174,29 @@ export default function AdminPage() {
     }
   };
 
+  // ---- নতুন: কাস্টমারকে ব্লক/আনব্লক করা — ব্লক করলে সেই কাস্টমার নতুন কোনো দোকান থেকে ক্রেডিট নিতে পারবে না ----
+  const handleToggleBlockCustomer = async (customer) => {
+    const isCurrentlyBlocked = customer.isBlockedByAdmin === true;
+    const action = isCurrentlyBlocked ? "আনব্লক" : "ব্লক";
+    if (!confirm(`${customer.name || customer.phone} কে ${action} করতে চান?`)) return;
+    try {
+      await updateDoc(doc(db, "customers", customer.id), {
+        isBlockedByAdmin: !isCurrentlyBlocked,
+        blockedAt: !isCurrentlyBlocked ? serverTimestamp() : null,
+        blockedBy: !isCurrentlyBlocked ? adminUid : null,
+      });
+      writeLog(
+        isCurrentlyBlocked ? "unblock_customer" : "block_customer",
+        "customer",
+        customer.id,
+        customer.name || customer.phone
+      );
+    } catch (err) {
+      console.error(err);
+      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+    }
+  };
+
   const handleExportCSV = () => {
     const rows = [["ধরন", "নাম", "ফোন", "স্ট্যাটাস/স্কোর", "ঠিকানা"]];
     shopkeepers.forEach((s) => {
@@ -189,7 +217,7 @@ export default function AdminPage() {
     URL.revokeObjectURL(url);
   };
 
-  // ---- নতুন: কোনো দোকান/কাস্টমারের সাথে সম্পর্কিত transaction খুঁজে বের করা ----
+  // ---- কোনো দোকান/কাস্টমারের সাথে সম্পর্কিত transaction খুঁজে বের করা ----
   const getTransactionsFor = (entity, type) => {
     if (!entity) return [];
     return transactions
@@ -217,7 +245,7 @@ export default function AdminPage() {
       });
   };
 
-  // ---- নতুন: Transaction status বদলানো ----
+  // ---- Transaction status বদলানো ----
   const handleUpdateTxnStatus = async (txn, newStatus) => {
     if (!confirm(`এই লেনদেনের স্ট্যাটাস "${statusLabel(newStatus)}" করতে চান?`)) return;
     try {
@@ -233,7 +261,7 @@ export default function AdminPage() {
     }
   };
 
-  // ---- নতুন: Notification permission চাওয়া ----
+  // ---- Notification permission চাওয়া ----
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === "default") {
@@ -255,6 +283,32 @@ export default function AdminPage() {
     return { totalOutstanding, totalPaid, totalTxns: transactions.length };
   }, [transactions]);
 
+  // ---- নতুন: মেয়াদ পার হওয়া (Overdue) সব transaction একসাথে খুঁজে বের করা ----
+  const overdueTxns = useMemo(() => {
+    return transactions.filter((t) => t.status === "approved" && isOverdue(t));
+  }, [transactions]);
+
+  // ---- নতুন: overdue transaction গুলোকে কাস্টমার অনুযায়ী গোষ্ঠীবদ্ধ করা ----
+  const overdueByCustomer = useMemo(() => {
+    const map = {};
+    overdueTxns.forEach((t) => {
+      const key = t.customerId || t.customerPhone;
+      if (!map[key]) {
+        map[key] = {
+          customerId: t.customerId,
+          customerPhone: t.customerPhone,
+          count: 0,
+          totalAmount: 0,
+          maxOverdueDays: 0,
+        };
+      }
+      map[key].count += 1;
+      map[key].totalAmount += (t.amount || 0) - (t.amountPaid || 0);
+      map[key].maxOverdueDays = Math.max(map[key].maxOverdueDays, getOverdueDays(t));
+    });
+    return Object.values(map).sort((a, b) => b.maxOverdueDays - a.maxOverdueDays);
+  }, [overdueTxns]);
+
   const term = searchTerm.trim().toLowerCase();
 
   const filteredShopkeepers = shopkeepers.filter((s) => {
@@ -268,6 +322,7 @@ export default function AdminPage() {
 
   const filteredCustomers = customers.filter((c) => {
     if (showRedFlagOnly && !c.isRedFlagged) return false;
+    if (showBlockedOnly && !c.isBlockedByAdmin) return false;
     if (!term) return true;
     return (
       (c.name || "").toLowerCase().includes(term) ||
@@ -275,13 +330,20 @@ export default function AdminPage() {
     );
   });
 
+  // ---- নতুন: Pagination হিসাব ----
+  const totalCustomerPages = Math.max(1, Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE));
+  const paginatedCustomers = filteredCustomers.slice(
+    (customerPage - 1) * CUSTOMERS_PER_PAGE,
+    customerPage * CUSTOMERS_PER_PAGE
+  );
+
   const pendingShops = filteredShopkeepers.filter((s) => s.status === "pending_review");
   const activeShops = filteredShopkeepers.filter((s) => s.status === "approved");
   const suspendedShops = filteredShopkeepers.filter((s) => s.status === "suspended");
   const rejectedShops = filteredShopkeepers.filter((s) => s.status === "rejected");
   const redFlaggedCount = customers.filter((c) => c.isRedFlagged).length;
 
-  // ---- নতুন: নতুন পেন্ডিং দোকান / red-flag এলে notification পাঠানো ----
+  // ---- নতুন পেন্ডিং দোকান / red-flag এলে notification পাঠানো ----
   useEffect(() => {
     if (!isAdmin) return;
     const allPendingCount = shopkeepers.filter((s) => s.status === "pending_review").length;
@@ -312,13 +374,18 @@ export default function AdminPage() {
     }
   };
 
+  // ---- নতুন: সার্চ/ফিল্টার বদলালে পেজ ১ এ ফিরে যাওয়া ----
+  useEffect(() => {
+    setCustomerPage(1);
+  }, [searchTerm, showRedFlagOnly, showBlockedOnly]);
+
   if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
 
   if (!isAdmin) {
     return <p style={{ padding: 20, color: "red" }}>⛔ আপনার এই পেজে প্রবেশের অনুমতি নেই।</p>;
   }
 
-  // ---- নতুন: Shop Detail View ----
+  // ---- Shop Detail View ----
   if (selectedShop) {
     const shopTxns = getTransactionsFor(selectedShop, "shop");
     return (
@@ -344,7 +411,7 @@ export default function AdminPage() {
     );
   }
 
-  // ---- নতুন: Customer Detail View ----
+  // ---- Customer Detail View ----
   if (selectedCustomer) {
     const custTxns = getTransactionsFor(selectedCustomer, "customer");
     return (
@@ -353,13 +420,35 @@ export default function AdminPage() {
           ← ফিরে যান
         </button>
         <h2>
-          👤 {selectedCustomer.name || "(নাম নেই)"} {selectedCustomer.isRedFlagged && "🚩"}
+          👤 {selectedCustomer.name || "(নাম নেই)"} {selectedCustomer.isRedFlagged && "🚩"}{" "}
+          {selectedCustomer.isBlockedByAdmin && "🚫"}
         </h2>
         <div style={shopCardStyle}>
           <p style={smallText}>ফোন: {selectedCustomer.phone}</p>
           <p style={smallText}>ট্রাস্ট স্কোর: {selectedCustomer.trustScore ?? 50}</p>
           <p style={smallText}>রিজেকশন সংখ্যা: {selectedCustomer.rejectionCount ?? 0}</p>
+          {selectedCustomer.isBlockedByAdmin && (
+            <p style={{ ...smallText, color: "red", fontWeight: "bold" }}>
+              🚫 এই কাস্টমার Admin দ্বারা ব্লক করা আছে — নতুন কোনো দোকান তাকে ক্রেডিট দিতে পারবে না
+            </p>
+          )}
         </div>
+
+        {/* ---- নতুন: কাস্টমার ব্লক/আনব্লক করার বাটন ---- */}
+        <button
+          onClick={() => handleToggleBlockCustomer(selectedCustomer)}
+          style={{
+            width: "100%",
+            padding: 10,
+            marginBottom: 20,
+            background: selectedCustomer.isBlockedByAdmin ? "green" : "#7f1d1d",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+          }}
+        >
+          {selectedCustomer.isBlockedByAdmin ? "✅ ব্লক তুলে নিন" : "🚫 এই কাস্টমারকে ব্লক করুন"}
+        </button>
 
         <h3 style={{ marginTop: 24 }}>লেনদেনের ইতিহাস ({custTxns.length})</h3>
         {custTxns.length === 0 && <p style={smallText}>কোনো লেনদেন পাওয়া যায়নি।</p>}
@@ -374,7 +463,7 @@ export default function AdminPage() {
     <div style={{ padding: 20, maxWidth: 600, margin: "auto" }}>
       <h2>🛠️ Admin Dashboard</h2>
 
-      {/* নতুন: Notification স্ট্যাটাস ও ব্যাজ */}
+      {/* Notification স্ট্যাটাস ও ব্যাজ */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
         {notifPermission !== "granted" && notifPermission !== "unsupported" && (
           <button
@@ -414,6 +503,13 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ---- নতুন: মেয়াদ পার হওয়া (Overdue) কাস্টমারদের সতর্কতা ও তালিকা ---- */}
+      {overdueByCustomer.length > 0 && (
+        <div style={{ background: "#3b2a00", padding: 10, borderRadius: 6, marginBottom: 16, fontSize: 13 }}>
+          ⚠️ বর্তমানে {overdueByCustomer.length} জন কাস্টমারের মোট {overdueTxns.length}টি বাকি মেয়াদ পার হয়ে গেছে
+        </div>
+      )}
+
       <button onClick={handleExportCSV} style={{ padding: 10, width: "100%", marginBottom: 20 }}>
         📥 CSV রিপোর্ট ডাউনলোড করুন
       </button>
@@ -426,7 +522,39 @@ export default function AdminPage() {
         style={{ display: "block", width: "100%", marginBottom: 20, padding: 10 }}
       />
 
-      <h3>⏳ পেন্ডিং অনুমোদন ({pendingShops.length})</h3>
+      {/* ---- নতুন: মেয়াদ পার হওয়া (Overdue) কাস্টমারদের বিস্তারিত তালিকা ---- */}
+      <h3>⚠️ মেয়াদ পার হওয়া (Overdue) কাস্টমার ({overdueByCustomer.length})</h3>
+      {overdueByCustomer.length === 0 && (
+        <p style={{ fontSize: 13, color: "#999" }}>বর্তমানে কোনো কাস্টমারের মেয়াদ পার হওয়া বাকি নেই।</p>
+      )}
+      {overdueByCustomer.map((item) => {
+        const customerDoc = customers.find(
+          (c) => c.id === item.customerId || c.phone === item.customerPhone
+        );
+        return (
+          <div key={item.customerId || item.customerPhone} style={{ ...shopCardStyle, borderLeft: "4px solid #f97316" }}>
+            <p
+              onClick={() => customerDoc && setSelectedCustomer(customerDoc)}
+              style={{
+                margin: 0,
+                fontWeight: "bold",
+                cursor: customerDoc ? "pointer" : "default",
+                textDecoration: customerDoc ? "underline" : "none",
+              }}
+            >
+              {customerDoc?.name || item.customerPhone}
+            </p>
+            <p style={smallText}>
+              ফোন: {item.customerPhone} | {item.count}টি বাকি এন্ট্রি | মোট ₹{item.totalAmount}
+            </p>
+            <p style={{ ...smallText, color: "#f97316" }}>
+              সবচেয়ে পুরনো মেয়াদ পার হয়েছে {item.maxOverdueDays} দিন আগে
+            </p>
+          </div>
+        );
+      })}
+
+      <h3 style={{ marginTop: 30 }}>⏳ পেন্ডিং অনুমোদন ({pendingShops.length})</h3>
       {pendingShops.length === 0 && <p>কোনো পেন্ডিং দোকান নেই।</p>}
       {pendingShops.map((shop) => (
         <div key={shop.id} style={shopCardStyle}>
@@ -508,7 +636,7 @@ export default function AdminPage() {
       ))}
 
       <h3 style={{ marginTop: 30 }}>👤 কাস্টমার ({filteredCustomers.length})</h3>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 14 }}>
         <input
           type="checkbox"
           checked={showRedFlagOnly}
@@ -516,29 +644,56 @@ export default function AdminPage() {
         />
         শুধু 🚩 রেড-ফ্ল্যাগড কাস্টমার দেখান
       </label>
-      {filteredCustomers.slice(0, 50).map((c) => (
+      {/* ---- নতুন: শুধু ব্লকড কাস্টমার দেখার ফিল্টার ---- */}
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
+        <input
+          type="checkbox"
+          checked={showBlockedOnly}
+          onChange={(e) => setShowBlockedOnly(e.target.checked)}
+        />
+        শুধু 🚫 ব্লকড কাস্টমার দেখান
+      </label>
+      {paginatedCustomers.map((c) => (
         <div
           key={c.id}
           style={{
             ...shopCardStyle,
-            borderLeft: c.isRedFlagged ? "4px solid red" : "4px solid #444",
+            borderLeft: c.isBlockedByAdmin ? "4px solid #777" : c.isRedFlagged ? "4px solid red" : "4px solid #444",
           }}
         >
           <p
             onClick={() => setSelectedCustomer(c)}
             style={{ margin: 0, fontWeight: "bold", cursor: "pointer", textDecoration: "underline" }}
           >
-            {c.name || "(নাম নেই)"} {c.isRedFlagged && "🚩"}
+            {c.name || "(নাম নেই)"} {c.isRedFlagged && "🚩"} {c.isBlockedByAdmin && "🚫"}
           </p>
           <p style={smallText}>
             ফোন: {c.phone} | স্কোর: {c.trustScore ?? 50} | রিজেকশন: {c.rejectionCount ?? 0}
           </p>
         </div>
       ))}
-      {filteredCustomers.length > 50 && (
-        <p style={{ fontSize: 13, color: "#999" }}>
-          আরও {filteredCustomers.length - 50} জন আছে (সার্চ করে খুঁজুন)
-        </p>
+
+      {/* ---- নতুন: Pagination controls ---- */}
+      {filteredCustomers.length > CUSTOMERS_PER_PAGE && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, marginBottom: 10 }}>
+          <button
+            onClick={() => setCustomerPage((p) => Math.max(1, p - 1))}
+            disabled={customerPage === 1}
+            style={{ padding: "6px 14px", background: "#333", color: "white", border: "1px solid #666" }}
+          >
+            ← আগের পাতা
+          </button>
+          <span style={{ fontSize: 13, color: "#999" }}>
+            পাতা {customerPage} / {totalCustomerPages}
+          </span>
+          <button
+            onClick={() => setCustomerPage((p) => Math.min(totalCustomerPages, p + 1))}
+            disabled={customerPage === totalCustomerPages}
+            style={{ padding: "6px 14px", background: "#333", color: "white", border: "1px solid #666" }}
+          >
+            পরের পাতা →
+          </button>
+        </div>
       )}
 
       <h3 style={{ marginTop: 30 }}>📋 সাম্প্রতিক অ্যাক্টিভিটি</h3>
@@ -562,4 +717,97 @@ export default function AdminPage() {
   );
 }
 
-// ---- নতুন: একটা transaction card, st
+// ---- একটা transaction card, detail view গুলোতে ব্যবহার হয় ----
+function TxnCard({ txn, onUpdateStatus }) {
+  const label = statusLabel(txn.status);
+  return (
+    <div style={{ ...shopCardStyle, borderLeft: `4px solid ${statusColor(txn.status)}` }}>
+      <p style={{ margin: 0 }}>
+        ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
+      </p>
+      <p style={smallText}>
+        দোকান: {txn.shopName || txn.shopId} | কাস্টমার: {txn.customerPhone}
+      </p>
+      <p style={{ ...smallText, color: statusColor(txn.status), fontWeight: "bold" }}>{label}</p>
+      {txn.createdAt?.toDate && (
+        <p style={smallText}>{txn.createdAt.toDate().toLocaleString("bn-BD")}</p>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        {txn.status !== "paid" && (
+          <button onClick={() => onUpdateStatus(txn, "paid")} style={{ ...btnStyle, background: "green" }}>
+            পরিশোধিত করুন
+          </button>
+        )}
+        {txn.status !== "rejected" && (
+          <button onClick={() => onUpdateStatus(txn, "rejected")} style={{ ...btnStyle, background: "red" }}>
+            বাতিল করুন
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function statusLabel(status) {
+  const map = {
+    pending_approval: "⏳ অপেক্ষমান",
+    approved: "🟢 Approved",
+    rejected: "🔴 Rejected",
+    awaiting_pin_confirmation: "🔑 PIN অপেক্ষমান",
+    paid: "✅ সম্পূর্ণ পরিশোধিত",
+  };
+  return map[status] || status;
+}
+
+function statusColor(status) {
+  const map = {
+    pending_approval: "#999",
+    approved: "green",
+    rejected: "red",
+    awaiting_pin_confirmation: "orange",
+    paid: "blue",
+  };
+  return map[status] || "#999";
+}
+
+function actionLabel(action) {
+  const map = {
+    approve_shop: "✅ দোকান Approve",
+    reject_shop: "❌ দোকান Reject",
+    suspend_shop: "⛔ দোকান Suspend",
+    reactivate_shop: "✅ দোকান পুনরায় সক্রিয়",
+    make_admin: "👑 Admin বানানো হয়েছে",
+    update_transaction: "✏️ Transaction status বদলানো হয়েছে",
+  };
+  return map[action] || action;
+}
+
+const cardStyle = {
+  flex: "1 1 45%",
+  background: "#1a1a1a",
+  padding: 12,
+  borderRadius: 6,
+  textAlign: "center",
+};
+const cardLabel = { margin: 0, fontSize: 11, color: "#999" };
+const cardValue = { margin: 0, fontSize: 20, fontWeight: "bold" };
+
+const shopCardStyle = {
+  background: "#1a1a1a",
+  padding: 12,
+  marginBottom: 10,
+  borderRadius: 6,
+  borderLeft: "4px solid #444",
+};
+
+const smallText = { margin: 0, fontSize: 13, color: "#ccc" };
+
+const btnStyle = {
+  flex: 1,
+  padding: 8,
+  color: "white",
+  border: "none",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: 13,
+};

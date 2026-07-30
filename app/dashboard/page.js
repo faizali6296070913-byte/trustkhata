@@ -91,6 +91,8 @@ export default function DashboardPage() {
   const [customerOverdueCount, setCustomerOverdueCount] = useState(0);
   // ---- নতুন: এই ফোন নম্বরে সত্যিই কোনো নিবন্ধিত কাস্টমার আছে কিনা ----
   const [isRegisteredCustomer, setIsRegisteredCustomer] = useState(null);
+  // ---- নতুন: Admin এই কাস্টমারকে ব্লক করে রেখেছেন কিনা ----
+  const [isCustomerBlocked, setIsCustomerBlocked] = useState(false);
 
   // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
   const [paymentInputs, setPaymentInputs] = useState({});
@@ -166,6 +168,7 @@ export default function DashboardPage() {
       setCustomerVerified(false);
       setCustomerOverdueCount(0);
       setIsRegisteredCustomer(null);
+      setIsCustomerBlocked(false);
       return;
     }
     setCheckingScore(true);
@@ -178,12 +181,15 @@ export default function DashboardPage() {
           setCustomerScore(snap.data().trustScore ?? 50);
           setCustomerFlagged(snap.data().isRedFlagged === true);
           setCustomerVerified(snap.data().verifiedByShopkeeper === true);
+          // ---- নতুন: Admin ব্লক করেছেন কিনা চেক করা ----
+          setIsCustomerBlocked(snap.data().isBlockedByAdmin === true);
         } else {
           // ---- বদলানো হয়েছে: নিবন্ধিত না হলে ডিফল্ট স্কোর দেখানো হবে না ----
           setIsRegisteredCustomer(false);
           setCustomerScore(null);
           setCustomerFlagged(false);
           setCustomerVerified(false);
+          setIsCustomerBlocked(false);
         }
 
         // ---- নতুন: এই কাস্টমারের (যেকোনো দোকানের) মেয়াদ পার হওয়া বাকি আছে কিনা চেক করা ----
@@ -227,6 +233,11 @@ export default function DashboardPage() {
 
   const handleCreditRequest = async (e) => {
     e.preventDefault();
+    // ---- নতুন: নিরাপত্তা যাচাই — ব্লক করা কাস্টমারকে কোনোভাবেই রিকোয়েস্ট পাঠানো যাবে না ----
+    if (isCustomerBlocked) {
+      alert("এই কাস্টমারকে Admin ব্লক করে রেখেছেন, নতুন রিকোয়েস্ট পাঠানো যাবে না।");
+      return;
+    }
     setSubmitting(true);
     setSuccessMsg("");
     try {
@@ -292,6 +303,7 @@ export default function DashboardPage() {
       setCustomerVerified(false);
       setCustomerOverdueCount(0);
       setIsRegisteredCustomer(null);
+      setIsCustomerBlocked(false);
       setVerifiedByMe(false);
     } catch (err) {
       console.error(err);
@@ -655,6 +667,12 @@ export default function DashboardPage() {
                 ⚠️ এই কাস্টমারের {customerOverdueCount}টা বাকি মেয়াদ পার হয়ে গেছে (এই বা অন্য দোকানে) — সাবধানে বাকি দিন
               </p>
             )}
+            {/* ---- নতুন: Admin এই কাস্টমারকে ব্লক করে রাখলে সতর্কতা ---- */}
+            {isCustomerBlocked && (
+              <p style={{ fontSize: 13, margin: "4px 0 0 0", color: "red", fontWeight: "bold" }}>
+                🚫 এই কাস্টমারকে Admin ব্লক করে রেখেছেন — নতুন ক্রেডিট রিকোয়েস্ট পাঠানো যাবে না
+              </p>
+            )}
           </div>
         )}
 
@@ -696,8 +714,8 @@ export default function DashboardPage() {
           </label>
         )}
 
-        <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
-          {submitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
+        <button type="submit" disabled={submitting || isCustomerBlocked} style={{ width: "100%", padding: 10 }}>
+          {isCustomerBlocked ? "🚫 এই কাস্টমারকে রিকোয়েস্ট পাঠানো যাবে না" : submitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
         </button>
       </form>
 
