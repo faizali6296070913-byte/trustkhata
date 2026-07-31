@@ -13,7 +13,7 @@ import {
   orderBy,
   limit,
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { isOverdue, getOverdueDays } from "@/lib/overdue";
 
 export default function AdminPage() {
@@ -87,6 +87,13 @@ export default function AdminPage() {
       unsubLogs();
     };
   }, [isAdmin]);
+
+  // ---- নতুন (bug fix): Admin panel এ লগ আউট করার কোনো উপায় ছিল না, এখন যোগ করা হলো ----
+  const handleLogout = () => {
+    signOut(auth).then(() => {
+      window.location.href = "/";
+    });
+  };
 
   const writeLog = async (action, targetType, targetId, targetName) => {
     try {
@@ -481,10 +488,18 @@ export default function AdminPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: "auto" }}>
-      <h2>🛠️ Admin Dashboard</h2>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <h2 style={{ margin: 0 }}>🛠️ Admin Dashboard</h2>
+        <button
+          onClick={handleLogout}
+          style={{ padding: "8px 14px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 4, fontSize: 13 }}
+        >
+          🚪 লগ আউট
+        </button>
+      </div>
 
       {/* Notification স্ট্যাটাস ও ব্যাজ */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, marginBottom: 10 }}>
         {notifPermission !== "granted" && notifPermission !== "unsupported" && (
           <button
             onClick={() => Notification.requestPermission().then(setNotifPermission)}
@@ -591,7 +606,7 @@ export default function AdminPage() {
               ধরন: {shop.shopType} {shop.yearsInBusiness ? `| ${shop.yearsInBusiness} বছর ধরে ব্যবসা` : ""}
             </p>
           )}
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
             <button onClick={() => handleApprove(shop)} style={{ ...btnStyle, background: "green" }}>
               ✅ Approve
             </button>
@@ -612,7 +627,7 @@ export default function AdminPage() {
             {shop.shopName}
           </p>
           <p style={smallText}>মালিক: {shop.ownerName || "—"} | ফোন: {shop.phone}</p>
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
             <button onClick={() => handleSuspend(shop)} style={{ ...btnStyle, background: "orange" }}>
               ⛔ সাসপেন্ড
             </button>
@@ -693,15 +708,15 @@ export default function AdminPage() {
         </div>
       ))}
 
-      {/* ---- নতুন: Pagination controls ---- */}
+      {/* ---- বদলানো হয়েছে: Pagination controls, ছোট স্ক্রিনেও ঠিকভাবে দেখানোর জন্য ---- */}
       {filteredCustomers.length > CUSTOMERS_PER_PAGE && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, marginBottom: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 10 }}>
           <button
             onClick={() => setCustomerPage((p) => Math.max(1, p - 1))}
             disabled={customerPage === 1}
-            style={{ padding: "6px 14px", background: "#333", color: "white", border: "1px solid #666" }}
+            style={{ padding: "10px 14px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 13 }}
           >
-            ← আগের পাতা
+            ← আগের
           </button>
           <span style={{ fontSize: 13, color: "#999" }}>
             পাতা {customerPage} / {totalCustomerPages}
@@ -709,9 +724,9 @@ export default function AdminPage() {
           <button
             onClick={() => setCustomerPage((p) => Math.min(totalCustomerPages, p + 1))}
             disabled={customerPage === totalCustomerPages}
-            style={{ padding: "6px 14px", background: "#333", color: "white", border: "1px solid #666" }}
+            style={{ padding: "10px 14px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 13 }}
           >
-            পরের পাতা →
+            পরের →
           </button>
         </div>
       )}
@@ -742,11 +757,20 @@ function TxnCard({ txn, onUpdateStatus, onUndo }) {
   const label = statusLabel(txn.status);
   return (
     <div style={{ ...shopCardStyle, borderLeft: `4px solid ${statusColor(txn.status)}` }}>
-      <p style={{ margin: 0, fontSize: 17, fontWeight: "bold" }}>
+      <p style={{ margin: 0, fontSize: 18, fontWeight: "bold", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
         পরিমাণ: ₹{txn.amount}
         {txn.wasEdited && (
-          <span style={{ fontSize: 11, color: "#999", fontWeight: "normal", marginLeft: 6 }}>
-            (সম্পাদিত)
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: "normal",
+              color: "#93c5fd",
+              background: "#1e3a5f",
+              padding: "2px 8px",
+              borderRadius: 999,
+            }}
+          >
+            ✏️ সম্পাদিত
           </span>
         )}
       </p>
@@ -823,32 +847,37 @@ function actionLabel(action) {
   return map[action] || action;
 }
 
+// ---- বদলানো হয়েছে: মোবাইলে আরও ভালো দেখানোর জন্য (word-wrap, touch target বড় করা) ----
 const cardStyle = {
   flex: "1 1 45%",
+  minWidth: 130,
   background: "#1a1a1a",
-  padding: 12,
-  borderRadius: 6,
+  padding: 14,
+  borderRadius: 8,
   textAlign: "center",
 };
 const cardLabel = { margin: 0, fontSize: 11, color: "#999" };
-const cardValue = { margin: 0, fontSize: 20, fontWeight: "bold" };
+const cardValue = { margin: "4px 0 0 0", fontSize: 22, fontWeight: "bold" };
 
 const shopCardStyle = {
   background: "#1a1a1a",
-  padding: 12,
+  padding: 14,
   marginBottom: 10,
-  borderRadius: 6,
+  borderRadius: 8,
   borderLeft: "4px solid #444",
+  wordBreak: "break-word",
 };
 
-const smallText = { margin: 0, fontSize: 13, color: "#ccc" };
+const smallText = { margin: "2px 0", fontSize: 13, color: "#ccc", wordBreak: "break-word" };
 
 const btnStyle = {
-  flex: 1,
-  padding: 8,
+  flex: "1 1 45%",
+  minWidth: 100,
+  padding: "10px 8px",
   color: "white",
   border: "none",
-  borderRadius: 4,
+  borderRadius: 6,
   cursor: "pointer",
   fontSize: 13,
+  fontWeight: "bold",
 };
