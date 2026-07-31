@@ -427,21 +427,24 @@ export default function CustomerDashboardPage() {
   const shopList = Object.values(shopSummary);
 
   return (
-    <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>আমার প্রোফাইল</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ padding: 16, maxWidth: 480, margin: "auto" }}>
+      {/* ---- বাগ ফিক্স: ছোট স্ক্রিনে হেডার ভিড় করার ঝুঁকি এড়াতে icon-only বাটন ও wrap ---- */}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <h2 style={{ margin: 0, fontSize: 20 }}>আমার প্রোফাইল</h2>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button
             onClick={() => setShowSettings((v) => !v)}
-            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+            title="সেটিংস"
+            style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
-            ⚙️ সেটিংস
+            ⚙️
           </button>
           <button
             onClick={handleLogout}
-            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+            title="লগ আউট"
+            style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
-            🚪 লগ আউট
+            🚪
           </button>
         </div>
       </div>
@@ -695,7 +698,7 @@ export default function CustomerDashboardPage() {
         );
 
         return (
-          <div key={idx} style={{ background: "#1a1a1a", padding: 10, marginBottom: 8 }}>
+          <div key={idx} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6, wordBreak: "break-word" }}>
             <div onClick={() => (window.location.href = `/shop-ledger/${shop.shopId}`)} style={{ cursor: "pointer" }}>
               <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span></p>
               <p style={{ margin: 0, fontSize: 13 }}>
@@ -726,7 +729,7 @@ export default function CustomerDashboardPage() {
                       }
                       style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
                     />
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       <button
                         onClick={() => sendSettlementRequest(shop)}
                         disabled={settleSubmitting}
@@ -762,7 +765,7 @@ export default function CustomerDashboardPage() {
                 <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#fbbf24" }}>
                   দোকানদার ₹{activeSettle.amount} এর জন্য PIN দিয়েছেন — সেই PIN নিচে লিখুন:
                 </p>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <input
                     type="text"
                     placeholder="PIN দিন"
@@ -802,15 +805,26 @@ export default function CustomerDashboardPage() {
               padding: 12,
               marginBottom: 10,
               background: "#1a1a1a",
+              borderRadius: 6,
+              wordBreak: "break-word",
             }}
           >
             <p style={{ margin: 0 }}>🏪 {txn.shopName}</p>
             {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
-            <p style={{ margin: 0, fontSize: 17, fontWeight: "bold" }}>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: "bold", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               পরিমাণ: ₹{txn.amount}
               {txn.wasEdited && (
-                <span style={{ fontSize: 11, color: "#999", fontWeight: "normal", marginLeft: 6 }}>
-                  (সম্পাদিত)
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "normal",
+                    color: "#93c5fd",
+                    background: "#1e3a5f",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                  }}
+                >
+                  ✏️ সম্পাদিত
                 </span>
               )}
             </p>
@@ -857,7 +871,7 @@ export default function CustomerDashboardPage() {
                 <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#fbbf24" }}>
                   দোকানদার ₹{txn.pendingPaymentAmount || txn.amount} এর জন্য PIN দিয়েছেন — সেই PIN নিচে লিখুন:
                 </p>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <input
                     type="text"
                     placeholder="PIN দিন"
