@@ -59,6 +59,10 @@ export default function CustomerDashboardPage() {
   const [settlePinInputs, setSettlePinInputs] = useState({});
   const [settleConfirming, setSettleConfirming] = useState({});
 
+  // ---- নতুন: দোকানদারের পাঠানো সংশোধনের অনুরোধ (Edit Request) এর জন্য state ----
+  const [editRequests, setEditRequests] = useState([]);
+  const [editRespondingId, setEditRespondingId] = useState(null);
+
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -101,10 +105,21 @@ export default function CustomerDashboardPage() {
         setSettlementRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
       });
 
+      // ---- নতুন: দোকানদারের পাঠানো সংশোধনের অনুরোধ (Edit Request) শোনা ----
+      const editQ = query(
+        collection(db, "editRequests"),
+        where("customerId", "==", digits),
+        where("status", "==", "pending")
+      );
+      const unsubEdit = onSnapshot(editQ, (snapshot) => {
+        setEditRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      });
+
       return () => {
         unsubCustomer();
         unsubTxns();
         unsubSettle();
+        unsubEdit();
       };
     });
     return () => unsubAuth();
@@ -302,6 +317,28 @@ export default function CustomerDashboardPage() {
     setPinConfirming((prev) => ({ ...prev, [txn.id]: false }));
   };
 
+  // ---- নতুন: দোকানদারের পাঠানো সংশোধনের অনুরোধে সাড়া দেওয়া ----
+  const respondToEditRequest = async (req, decision) => {
+    setEditRespondingId(req.id);
+    try {
+      if (decision === "approved") {
+        // ---- আসল transaction এ নতুন পরিমাণ/বিবরণ বসানো হচ্ছে ----
+        await updateDoc(doc(db, "transactions", req.transactionId), {
+          amount: req.newAmount,
+          itemDetails: req.newItemDetails,
+        });
+      }
+      await updateDoc(doc(db, "editRequests", req.id), {
+        status: decision,
+        respondedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error(err);
+      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+    }
+    setEditRespondingId(null);
+  };
+
   const respond = async (txn, decision) => {
     try {
       await updateDoc(doc(db, "transactions", txn.id), {
@@ -438,6 +475,40 @@ export default function CustomerDashboardPage() {
                 </div>
               </div>
             ))}
+        </div>
+      )}
+
+      {/* ---- নতুন: দোকানদার কোনো এন্ট্রি সংশোধনের অনুরোধ পাঠালে সবার ওপরে দেখানো ---- */}
+      {editRequests.length > 0 && (
+        <div style={{ background: "#1e293b", border: "2px solid #3b82f6", padding: 14, marginTop: 14, borderRadius: 8 }}>
+          <h3 style={{ margin: "0 0 10px 0", color: "#60a5fa" }}>✏️ সংশোধনের অনুরোধ এসেছে</h3>
+          {editRequests.map((req) => (
+            <div key={req.id} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6 }}>
+              <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {req.shopName}</p>
+              <p style={{ margin: "4px 0" }}>
+                পরিমাণ: <span style={{ textDecoration: "line-through", color: "#999" }}>₹{req.oldAmount}</span>
+                {" → "}
+                <span style={{ fontWeight: "bold", color: "#60a5fa" }}>₹{req.newAmount}</span>
+              </p>
+              {req.newItemDetails && <p style={{ margin: 0, fontSize: 13 }}>নতুন বিবরণ: {req.newItemDetails}</p>}
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button
+                  onClick={() => respondToEditRequest(req, "approved")}
+                  disabled={editRespondingId === req.id}
+                  style={{ flex: 1, padding: 10, background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
+                >
+                  ✅ সংশোধন গ্রহণ করুন
+                </button>
+                <button
+                  onClick={() => respondToEditRequest(req, "rejected")}
+                  disabled={editRespondingId === req.id}
+                  style={{ flex: 1, padding: 10, background: "#dc2626", color: "white", border: "none", fontWeight: "bold" }}
+                >
+                  ❌ প্রত্যাখ্যান করুন
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
       {showSettings && (

@@ -94,6 +94,14 @@ export default function DashboardPage() {
   // ---- নতুন: Admin এই কাস্টমারকে ব্লক করে রেখেছেন কিনা ----
   const [isCustomerBlocked, setIsCustomerBlocked] = useState(false);
 
+  // ---- নতুন: সংশোধনের অনুরোধ (Edit Request) এর জন্য state ----
+  const [editRequests, setEditRequests] = useState([]);
+  const [editFormOpenFor, setEditFormOpenFor] = useState(null);
+  const [editAmountInput, setEditAmountInput] = useState("");
+  const [editDetailsInput, setEditDetailsInput] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState("");
+
   // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
   const [paymentInputs, setPaymentInputs] = useState({});
   // ---- নতুন: প্রথমে শুধু সাম্প্রতিক লেনদেন দেখানো, দ্রুত লোড হওয়ার জন্য ----
@@ -147,6 +155,16 @@ export default function DashboardPage() {
     const settleQ = query(collection(db, "settlementRequests"), where("shopId", "==", uid));
     const unsub = onSnapshot(settleQ, (snapshot) => {
       setSettlementRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [uid]);
+
+  // ---- নতুন: নিজের পাঠানো সংশোধনের অনুরোধ (Edit Request) শোনা ----
+  useEffect(() => {
+    if (!uid) return;
+    const editQ = query(collection(db, "editRequests"), where("shopId", "==", uid));
+    const unsub = onSnapshot(editQ, (snapshot) => {
+      setEditRequests(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
   }, [uid]);
@@ -336,6 +354,46 @@ export default function DashboardPage() {
   };
 
   // ---- নতুন: কাস্টমারের "মোট বাকি মেটান" রিকোয়েস্ট accept করে PIN জেনারেট করা ----
+  // ---- নতুন: কোনো এন্ট্রি ভুল হলে, সংশোধনের অনুরোধ পাঠানো — কাস্টমারের অনুমোদন লাগবে ----
+  const handleSendEditRequest = async (txn) => {
+    setEditError("");
+    const newAmount = Number(editAmountInput);
+
+    if (!editAmountInput || isNaN(newAmount) || newAmount <= 0) {
+      setEditError("সঠিক পরিমাণ লিখুন।");
+      return;
+    }
+    const alreadyPaid = txn.amountPaid || 0;
+    if (newAmount < alreadyPaid) {
+      setEditError(`নতুন পরিমাণ ₹${alreadyPaid} (ইতিমধ্যে পরিশোধিত) এর কম হতে পারবে না।`);
+      return;
+    }
+
+    setEditSubmitting(true);
+    try {
+      await setDoc(doc(collection(db, "editRequests")), {
+        shopId: uid,
+        shopName: shopData.shopName,
+        transactionId: txn.id,
+        customerId: txn.customerId,
+        customerPhone: txn.customerPhone,
+        oldAmount: txn.amount,
+        newAmount,
+        oldItemDetails: txn.itemDetails || null,
+        newItemDetails: editDetailsInput || null,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      setEditFormOpenFor(null);
+      setEditAmountInput("");
+      setEditDetailsInput("");
+    } catch (err) {
+      console.error(err);
+      setEditError("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+    }
+    setEditSubmitting(false);
+  };
+
   const acceptSettlement = async (req) => {
     setSettleAccepting((prev) => ({ ...prev, [req.id]: true }));
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -922,6 +980,72 @@ export default function DashboardPage() {
             )}
 
             <strong style={{ color: s.color }}>{s.label}</strong>
+
+            {/* ---- নতুন: সংশোধনের অনুরোধ (Edit Request) — শুধু "approved" এন্ট্রির জন্য ---- */}
+            {txn.status === "approved" && (() => {
+              const pendingEdit = editRequests.find(
+                (r) => r.transactionId === txn.id && r.status === "pending"
+              );
+              if (pendingEdit) {
+                return (
+                  <p style={{ margin: "6px 0 0 0", fontSize: 12, color: "#fbbf24" }}>
+                    ✏️ সংশোধনের অনুরোধ (₹{pendingEdit.oldAmount} → ₹{pendingEdit.newAmount}) কাস্টমারের অনুমোদনের অপেক্ষায়
+                  </p>
+                );
+              }
+              if (editFormOpenFor === txn.id) {
+                return (
+                  <div style={{ marginTop: 8, background: "#0d0d0d", padding: 10, borderRadius: 6 }}>
+                    <input
+                      type="number"
+                      placeholder={`নতুন পরিমাণ (বর্তমান ₹${txn.amount})`}
+                      value={editAmountInput}
+                      onChange={(e) => setEditAmountInput(e.target.value)}
+                      style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="নতুন বিবরণ (ঐচ্ছিক)"
+                      value={editDetailsInput}
+                      onChange={(e) => setEditDetailsInput(e.target.value)}
+                      style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => handleSendEditRequest(txn)}
+                        disabled={editSubmitting}
+                        style={{ flex: 1, padding: 8, background: "#1e3a8a", color: "white", border: "none" }}
+                      >
+                        {editSubmitting ? "..." : "অনুরোধ পাঠান"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditFormOpenFor(null);
+                          setEditError("");
+                        }}
+                        style={{ padding: "8px 14px", background: "#333", color: "white", border: "1px solid #666" }}
+                      >
+                        বাতিল
+                      </button>
+                    </div>
+                    {editError && <p style={{ color: "red", fontSize: 12, margin: "4px 0 0 0" }}>{editError}</p>}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  onClick={() => {
+                    setEditFormOpenFor(txn.id);
+                    setEditAmountInput(String(txn.amount));
+                    setEditDetailsInput(txn.itemDetails || "");
+                    setEditError("");
+                  }}
+                  style={{ marginTop: 8, padding: "6px 12px", fontSize: 12, background: "#333", color: "white", border: "1px solid #666" }}
+                >
+                  ✏️ সংশোধনের অনুরোধ পাঠান
+                </button>
+              );
+            })()}
 
             {txn.status === "pending_approval" && txn.approvalToken && (
               <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
