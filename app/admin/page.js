@@ -251,10 +251,30 @@ export default function AdminPage() {
     try {
       await updateDoc(doc(db, "transactions", txn.id), {
         status: newStatus,
+        // ---- নতুন: আগের status সংরক্ষণ করা, যাতে পরে "Undo" করা যায় ----
+        previousStatusBeforeAdmin: txn.status,
         adminUpdatedAt: serverTimestamp(),
         adminUpdatedBy: adminUid,
       });
       writeLog("update_transaction", "transaction", txn.id, `₹${txn.amount} → ${newStatus}`);
+    } catch (err) {
+      console.error(err);
+      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+    }
+  };
+
+  // ---- নতুন: Admin এর করা সর্বশেষ পরিবর্তন ফিরিয়ে আনা (Undo) ----
+  const handleUndoTxnStatus = async (txn) => {
+    if (!txn.previousStatusBeforeAdmin) return;
+    if (!confirm(`স্ট্যাটাস আগের অবস্থায় (${statusLabel(txn.previousStatusBeforeAdmin)}) ফিরিয়ে নিতে চান?`)) return;
+    try {
+      await updateDoc(doc(db, "transactions", txn.id), {
+        status: txn.previousStatusBeforeAdmin,
+        previousStatusBeforeAdmin: null,
+        adminUpdatedAt: serverTimestamp(),
+        adminUpdatedBy: adminUid,
+      });
+      writeLog("undo_transaction", "transaction", txn.id, `₹${txn.amount} → ${txn.previousStatusBeforeAdmin} (undo)`);
     } catch (err) {
       console.error(err);
       alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
@@ -405,7 +425,7 @@ export default function AdminPage() {
         <h3 style={{ marginTop: 24 }}>লেনদেনের ইতিহাস ({shopTxns.length})</h3>
         {shopTxns.length === 0 && <p style={smallText}>কোনো লেনদেন পাওয়া যায়নি।</p>}
         {shopTxns.map((t) => (
-          <TxnCard key={t.id} txn={t} onUpdateStatus={handleUpdateTxnStatus} />
+          <TxnCard key={t.id} txn={t} onUpdateStatus={handleUpdateTxnStatus} onUndo={handleUndoTxnStatus} />
         ))}
       </div>
     );
@@ -453,7 +473,7 @@ export default function AdminPage() {
         <h3 style={{ marginTop: 24 }}>লেনদেনের ইতিহাস ({custTxns.length})</h3>
         {custTxns.length === 0 && <p style={smallText}>কোনো লেনদেন পাওয়া যায়নি।</p>}
         {custTxns.map((t) => (
-          <TxnCard key={t.id} txn={t} onUpdateStatus={handleUpdateTxnStatus} />
+          <TxnCard key={t.id} txn={t} onUpdateStatus={handleUpdateTxnStatus} onUndo={handleUndoTxnStatus} />
         ))}
       </div>
     );
@@ -718,19 +738,31 @@ export default function AdminPage() {
 }
 
 // ---- একটা transaction card, detail view গুলোতে ব্যবহার হয় ----
-function TxnCard({ txn, onUpdateStatus }) {
+function TxnCard({ txn, onUpdateStatus, onUndo }) {
   const label = statusLabel(txn.status);
   return (
     <div style={{ ...shopCardStyle, borderLeft: `4px solid ${statusColor(txn.status)}` }}>
-      <p style={{ margin: 0 }}>
-        ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
+      <p style={{ margin: 0, fontSize: 17, fontWeight: "bold" }}>
+        পরিমাণ: ₹{txn.amount}
+        {txn.wasEdited && (
+          <span style={{ fontSize: 11, color: "#999", fontWeight: "normal", marginLeft: 6 }}>
+            (সম্পাদিত)
+          </span>
+        )}
       </p>
+      {txn.itemDetails && <p style={smallText}>বিবরণ: {txn.itemDetails}</p>}
       <p style={smallText}>
         দোকান: {txn.shopName || txn.shopId} | কাস্টমার: {txn.customerPhone}
       </p>
       <p style={{ ...smallText, color: statusColor(txn.status), fontWeight: "bold" }}>{label}</p>
       {txn.createdAt?.toDate && (
         <p style={smallText}>{txn.createdAt.toDate().toLocaleString("bn-BD")}</p>
+      )}
+      {/* ---- নতুন: Admin আগে কোনো পরিবর্তন করে থাকলে, সেটা ফিরিয়ে নেওয়ার সুবিধা ---- */}
+      {txn.previousStatusBeforeAdmin && (
+        <p style={{ ...smallText, color: "#f97316" }}>
+          ⓘ Admin এর আগের পরিবর্তনের আগে ছিল: {statusLabel(txn.previousStatusBeforeAdmin)}
+        </p>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         {txn.status !== "paid" && (
@@ -741,6 +773,14 @@ function TxnCard({ txn, onUpdateStatus }) {
         {txn.status !== "rejected" && (
           <button onClick={() => onUpdateStatus(txn, "rejected")} style={{ ...btnStyle, background: "red" }}>
             বাতিল করুন
+          </button>
+        )}
+        {txn.previousStatusBeforeAdmin && (
+          <button
+            onClick={() => onUndo(txn)}
+            style={{ ...btnStyle, background: "#333", border: "1px solid #666" }}
+          >
+            ↩️ আগের অবস্থায় ফিরিয়ে নিন
           </button>
         )}
       </div>
@@ -778,6 +818,7 @@ function actionLabel(action) {
     reactivate_shop: "✅ দোকান পুনরায় সক্রিয়",
     make_admin: "👑 Admin বানানো হয়েছে",
     update_transaction: "✏️ Transaction status বদলানো হয়েছে",
+    undo_transaction: "↩️ Transaction status ফিরিয়ে নেওয়া হয়েছে",
   };
   return map[action] || action;
 }

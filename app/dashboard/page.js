@@ -962,9 +962,18 @@ export default function DashboardPage() {
                 <span style={{ color: "#3b82f6", fontSize: 11, marginLeft: 6 }}>✅ যাচাইকৃত</span>
               )}
             </p>
-            <p style={{ margin: 0 }}>
-              ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
+            {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
+            <p style={{ margin: 0, fontSize: 17, fontWeight: "bold" }}>
+              পরিমাণ: ₹{txn.amount}
+              {txn.wasEdited && (
+                <span style={{ fontSize: 11, color: "#999", fontWeight: "normal", marginLeft: 6 }}>
+                  (সম্পাদিত)
+                </span>
+              )}
             </p>
+            {txn.itemDetails && (
+              <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>বিবরণ: {txn.itemDetails}</p>
+            )}
             {/* ---- নতুন: মেয়াদ পার হয়ে গেলে সতর্কতা দেখানো ---- */}
             {isOverdue(txn) && (
               <p style={{ margin: "2px 0", fontSize: 12, color: "#f97316", fontWeight: "bold" }}>

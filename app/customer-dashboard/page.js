@@ -322,10 +322,12 @@ export default function CustomerDashboardPage() {
     setEditRespondingId(req.id);
     try {
       if (decision === "approved") {
-        // ---- আসল transaction এ নতুন পরিমাণ/বিবরণ বসানো হচ্ছে ----
+        // ---- আসল transaction এ নতুন পরিমাণ/বিবরণ বসানো হচ্ছে, শুধু "সম্পাদিত" চিহ্ন রাখা হচ্ছে (পুরনো মান রাখা হচ্ছে না) ----
         await updateDoc(doc(db, "transactions", req.transactionId), {
           amount: req.newAmount,
           itemDetails: req.newItemDetails,
+          wasEdited: true,
+          lastEditedAt: serverTimestamp(),
         });
       }
       await updateDoc(doc(db, "editRequests", req.id), {
@@ -803,9 +805,18 @@ export default function CustomerDashboardPage() {
             }}
           >
             <p style={{ margin: 0 }}>🏪 {txn.shopName}</p>
-            <p style={{ margin: 0 }}>
-              ₹{txn.amount} {txn.itemDetails ? `— ${txn.itemDetails}` : ""}
+            {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
+            <p style={{ margin: 0, fontSize: 17, fontWeight: "bold" }}>
+              পরিমাণ: ₹{txn.amount}
+              {txn.wasEdited && (
+                <span style={{ fontSize: 11, color: "#999", fontWeight: "normal", marginLeft: 6 }}>
+                  (সম্পাদিত)
+                </span>
+              )}
             </p>
+            {txn.itemDetails && (
+              <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>বিবরণ: {txn.itemDetails}</p>
+            )}
 
             {/* ---- নতুন: আংশিক পরিশোধের অগ্রগতি ---- */}
             {(txn.amountPaid || 0) > 0 && txn.status !== "paid" && (
