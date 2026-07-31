@@ -505,7 +505,7 @@ export default function DashboardPage() {
   if (shopData?.status === "pending_review") {
     return (
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <h2>{shopData.shopName}</h2>
           <button
             onClick={handleLogout}
@@ -523,7 +523,7 @@ export default function DashboardPage() {
   if (shopData?.status === "suspended") {
     return (
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <h2>{shopData.shopName}</h2>
           <button
             onClick={handleLogout}
@@ -543,7 +543,7 @@ export default function DashboardPage() {
   if (shopData?.status === "rejected") {
     return (
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <h2>{shopData.shopName}</h2>
           <button
             onClick={handleLogout}
@@ -568,25 +568,40 @@ export default function DashboardPage() {
   };
 
   return (
-    <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>{shopData.shopName}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ padding: 16, maxWidth: 480, margin: "auto" }}>
+      {/* ---- বাগ ফিক্স: লম্বা দোকানের নাম বাটনের সাথে ওভারল্যাপ করছিল, এখন ঠিক করা হলো ---- */}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 20,
+            flex: "1 1 auto",
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {shopData.shopName}
+        </h2>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button
             onClick={() => setShowSettings((v) => !v)}
-            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+            title="সেটিংস"
+            style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
-            ⚙️ সেটিংস
+            ⚙️
           </button>
           <button
             onClick={handleLogout}
-            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+            title="লগ আউট"
+            style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
-            🚪 লগ আউট
+            🚪
           </button>
         </div>
       </div>
-      <p>✅ স্ট্যাটাস: {shopData.status}</p>
+      <p style={{ fontSize: 13, color: "#999", margin: "6px 0 0 0" }}>✅ স্ট্যাটাস: {shopData.status}</p>
 
       {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
       {showSettings && (
@@ -925,7 +940,7 @@ export default function DashboardPage() {
           <div
             key={c.customerId}
             onClick={() => (window.location.href = `/customer-ledger/${c.customerId}`)}
-            style={{ background: "#1a1a1a", padding: 10, marginBottom: 8, cursor: "pointer" }}
+            style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, cursor: "pointer", borderRadius: 6 }}
           >
             <p style={{ margin: 0, fontWeight: "bold" }}>
               👤 {c.customerPhone} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span>
@@ -954,6 +969,8 @@ export default function DashboardPage() {
               padding: 12,
               marginBottom: 10,
               background: "#1a1a1a",
+              borderRadius: 6,
+              wordBreak: "break-word",
             }}
           >
             <p style={{ margin: 0 }}>
@@ -963,11 +980,20 @@ export default function DashboardPage() {
               )}
             </p>
             {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
-            <p style={{ margin: 0, fontSize: 17, fontWeight: "bold" }}>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: "bold", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               পরিমাণ: ₹{txn.amount}
               {txn.wasEdited && (
-                <span style={{ fontSize: 11, color: "#999", fontWeight: "normal", marginLeft: 6 }}>
-                  (সম্পাদিত)
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "normal",
+                    color: "#93c5fd",
+                    background: "#1e3a5f",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                  }}
+                >
+                  ✏️ সম্পাদিত
                 </span>
               )}
             </p>
@@ -1019,7 +1045,7 @@ export default function DashboardPage() {
                       onChange={(e) => setEditDetailsInput(e.target.value)}
                       style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
                     />
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                       <button
                         onClick={() => handleSendEditRequest(txn)}
                         disabled={editSubmitting}
@@ -1097,7 +1123,7 @@ export default function DashboardPage() {
                 <p style={{ fontSize: 12, color: "#999", margin: "0 0 4px 0" }}>
                   আজ কত টাকা পেয়েছেন? (সর্বোচ্চ ₹{remaining})
                 </p>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   <input
                     type="number"
                     placeholder={`₹${remaining}`}
