@@ -19,9 +19,16 @@ function getOverdueDaysServer(txn) {
 
 // ---- এই route টা প্রতিদিন একবার Vercel Cron নিজে থেকেই চালাবে (কারো app খোলার অপেক্ষা করবে না) ----
 export async function GET(request) {
-  // ---- নিরাপত্তা: শুধু Vercel Cron নিজে (গোপন CRON_SECRET সহ) এই route চালাতে পারবে ----
+  // ---- নিরাপত্তা: Vercel Cron এর নিজস্ব header, অথবা ম্যানুয়াল টেস্টের জন্য URL এ ?secret= — দুটোর যেকোনো একটা মিললেই চলবে ----
+  const url = new URL(request.url);
+  const secretFromQuery = url.searchParams.get("secret");
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+
+  const isAuthorized =
+    authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+    (secretFromQuery && secretFromQuery === process.env.CRON_SECRET);
+
+  if (!isAuthorized) {
     return new Response("Unauthorized", { status: 401 });
   }
 
