@@ -461,6 +461,46 @@ export default function DashboardPage() {
     );
   }
 
+  {/* ---- নতুন: সাসপেন্ড করা হলে dashboard ব্যবহার করতে দেওয়া হবে না ---- */}
+  if (shopData?.status === "suspended") {
+    return (
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <h2>{shopData.shopName}</h2>
+          <button
+            onClick={handleLogout}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            🚪 লগ আউট
+          </button>
+        </div>
+        <p style={{ color: "red", fontWeight: "bold" }}>
+          ⛔ আপনার একাউন্ট Admin দ্বারা সাসপেন্ড করা হয়েছে। বিস্তারিত জানতে যোগাযোগ করুন।
+        </p>
+      </div>
+    );
+  }
+
+  {/* ---- নতুন: Reject করা হলেও dashboard ব্যবহার করতে দেওয়া হবে না ---- */}
+  if (shopData?.status === "rejected") {
+    return (
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <h2>{shopData.shopName}</h2>
+          <button
+            onClick={handleLogout}
+            style={{ padding: 8, background: "#333", color: "white", border: "1px solid #666", height: 36 }}
+          >
+            🚪 লগ আউট
+          </button>
+        </div>
+        <p style={{ color: "red", fontWeight: "bold" }}>
+          ⛔ দুঃখিত, আপনার আবেদনটি Admin গ্রহণ করেননি।
+        </p>
+      </div>
+    );
+  }
+
   const statusMap = {
     pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
     approved: { color: "green", label: "🟢 Approved" },
