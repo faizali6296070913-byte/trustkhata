@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, setDoc, serverTimestamp, collection, query, where, orderBy, arrayUnion } from "firebase/firestore";
 import {
@@ -399,6 +399,43 @@ export default function CustomerDashboardPage() {
     return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
   };
 
+  // ---- নতুন: Firestore Timestamp ও ISO string দুটোই handle করার জন্য helper ----
+  const toMillis = (t) => {
+    if (!t) return 0;
+    if (t.toDate) return t.toDate().getTime();
+    if (typeof t === "string") return new Date(t).getTime();
+    return 0;
+  };
+
+  // ---- নতুন: সাম্প্রতিক Activity ফিড — কাস্টমারের নিজের সব দোকান মিলিয়ে ----
+  const activityFeed = useMemo(() => {
+    const events = [];
+    transactions.forEach((t) => {
+      if (t.createdAt) {
+        events.push({
+          time: toMillis(t.createdAt),
+          icon: "🆕",
+          text: `${t.shopName} আপনাকে ₹${t.amount} বাকি দিয়েছে`,
+        });
+      }
+      if (t.paidAt) {
+        events.push({
+          time: toMillis(t.paidAt),
+          icon: "💰",
+          text: `${t.shopName} এ ₹${t.amount} সম্পূর্ণ পরিশোধিত হয়েছে`,
+        });
+      }
+      (t.payments || []).forEach((p) => {
+        events.push({
+          time: toMillis(p.paidAt),
+          icon: "💵",
+          text: `${t.shopName} এ ₹${p.amount} পরিশোধ করেছেন`,
+        });
+      });
+    });
+    return events.sort((a, b) => b.time - a.time).slice(0, 8);
+  }, [transactions]);
+
   const statusMap = {
     pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
     approved: { color: "green", label: "🟢 Approved" },
@@ -681,6 +718,29 @@ export default function CustomerDashboardPage() {
         <p style={{ color: "red", fontWeight: "bold" }}>
           ⚠️ আপনার প্রোফাইলে Red Flag আছে (বারবার রিজেক্ট করার কারণে)
         </p>
+      )}
+
+      {/* ---- নতুন: সাম্প্রতিক Activity ফিড ---- */}
+      {activityFeed.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>🕐 সাম্প্রতিক কার্যক্রম</h3>
+          <div style={{ background: "#1a1a1a", borderRadius: 8, padding: 10 }}>
+            {activityFeed.map((ev, idx) => (
+              <p
+                key={idx}
+                style={{
+                  margin: 0,
+                  padding: "6px 0",
+                  fontSize: 13,
+                  borderBottom: idx < activityFeed.length - 1 ? "1px solid #333" : "none",
+                  wordBreak: "break-word",
+                }}
+              >
+                {ev.icon} {ev.text}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { auth, db } from "@/lib/firebase";
 import {
   doc,
@@ -576,6 +576,102 @@ export default function DashboardPage() {
     );
   }
 
+  // ---- নতুন: Firestore Timestamp ও ISO string দুটোই handle করার জন্য helper ----
+  const toMillis = (t) => {
+    if (!t) return 0;
+    if (t.toDate) return t.toDate().getTime();
+    if (typeof t === "string") return new Date(t).getTime();
+    return 0;
+  };
+
+  const isToday = (millis) => {
+    if (!millis) return false;
+    const d = new Date(millis);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+
+  // ---- নতুন: সাম্প্রতিক/নিয়মিত কাস্টমার — কতবার লেনদেন হয়েছে তার ভিত্তিতে সাজানো ----
+  const recentCustomers = useMemo(() => {
+    const freq = {};
+    transactions.forEach((t) => {
+      if (!t.customerPhone) return;
+      if (!freq[t.customerPhone]) {
+        freq[t.customerPhone] = { phone: t.customerPhone, count: 0, lastAt: 0 };
+      }
+      freq[t.customerPhone].count += 1;
+      freq[t.customerPhone].lastAt = Math.max(freq[t.customerPhone].lastAt, toMillis(t.createdAt));
+    });
+    return Object.values(freq)
+      .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt)
+      .slice(0, 6);
+  }, [transactions]);
+
+  // ---- নতুন: আজকের সারসংক্ষেপ ----
+  const dailySummary = useMemo(() => {
+    let newCreditsToday = 0;
+    let paidToday = 0;
+    const customersToday = new Set();
+
+    transactions.forEach((t) => {
+      if (isToday(toMillis(t.createdAt))) {
+        newCreditsToday += t.amount || 0;
+        customersToday.add(t.customerPhone);
+      }
+      if (isToday(toMillis(t.paidAt))) {
+        customersToday.add(t.customerPhone);
+      }
+      (t.payments || []).forEach((p) => {
+        if (isToday(toMillis(p.paidAt))) {
+          paidToday += p.amount || 0;
+          customersToday.add(t.customerPhone);
+        }
+      });
+    });
+
+    return { newCreditsToday, paidToday, customerCount: customersToday.size };
+  }, [transactions]);
+
+  // ---- নতুন: সাম্প্রতিক Activity ফিড — কী কী ঘটেছে তার সংক্ষিপ্ত তালিকা ----
+  const activityFeed = useMemo(() => {
+    const events = [];
+    transactions.forEach((t) => {
+      if (t.createdAt) {
+        events.push({
+          time: toMillis(t.createdAt),
+          icon: "🆕",
+          text: `${t.customerPhone} নতুন ₹${t.amount} বাকি নিয়েছেন`,
+        });
+      }
+      if (t.approvedAt) {
+        events.push({
+          time: toMillis(t.approvedAt),
+          icon: "✅",
+          text: `${t.customerPhone} ₹${t.amount} অ্যাপ্রুভ করেছেন`,
+        });
+      }
+      if (t.paidAt) {
+        events.push({
+          time: toMillis(t.paidAt),
+          icon: "💰",
+          text: `${t.customerPhone} সম্পূর্ণ ₹${t.amount} পরিশোধ করেছেন`,
+        });
+      }
+      (t.payments || []).forEach((p) => {
+        events.push({
+          time: toMillis(p.paidAt),
+          icon: "💵",
+          text: `${t.customerPhone} ₹${p.amount} পরিশোধ করেছেন`,
+        });
+      });
+    });
+    return events.sort((a, b) => b.time - a.time).slice(0, 8);
+  }, [transactions]);
+
   const statusMap = {
     pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
     approved: { color: "green", label: "🟢 Approved" },
@@ -619,6 +715,59 @@ export default function DashboardPage() {
         </div>
       </div>
       <p style={{ fontSize: 13, color: "#999", margin: "6px 0 0 0" }}>✅ স্ট্যাটাস: {shopData.status}</p>
+
+      {/* ---- নতুন: আজকের সারসংক্ষেপ ---- */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          marginTop: 14,
+          background: "#1a1a1a",
+          padding: 12,
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ flex: "1 1 28%", minWidth: 90, textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>আজ নতুন বাকি</p>
+          <p style={{ margin: "2px 0 0 0", fontSize: 17, fontWeight: "bold", color: "orange" }}>
+            ₹{dailySummary.newCreditsToday}
+          </p>
+        </div>
+        <div style={{ flex: "1 1 28%", minWidth: 90, textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>আজ পরিশোধিত</p>
+          <p style={{ margin: "2px 0 0 0", fontSize: 17, fontWeight: "bold", color: "#4ade80" }}>
+            ₹{dailySummary.paidToday}
+          </p>
+        </div>
+        <div style={{ flex: "1 1 28%", minWidth: 90, textAlign: "center" }}>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>আজকের কাস্টমার</p>
+          <p style={{ margin: "2px 0 0 0", fontSize: 17, fontWeight: "bold" }}>{dailySummary.customerCount}</p>
+        </div>
+      </div>
+
+      {/* ---- নতুন: সাম্প্রতিক Activity ফিড ---- */}
+      {activityFeed.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>🕐 সাম্প্রতিক কার্যক্রম</h3>
+          <div style={{ background: "#1a1a1a", borderRadius: 8, padding: 10 }}>
+            {activityFeed.map((ev, idx) => (
+              <p
+                key={idx}
+                style={{
+                  margin: 0,
+                  padding: "6px 0",
+                  fontSize: 13,
+                  borderBottom: idx < activityFeed.length - 1 ? "1px solid #333" : "none",
+                  wordBreak: "break-word",
+                }}
+              >
+                {ev.icon} {ev.text}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
       {showSettings && (
@@ -752,6 +901,33 @@ export default function DashboardPage() {
       )}
 
       <h3 style={{ marginTop: 20 }}>নতুন ক্রেডিট রিকোয়েস্ট</h3>
+
+      {/* ---- নতুন: নিয়মিত/সাম্প্রতিক কাস্টমার শর্টকাট — এক ক্লিকে ফোন নম্বর বসিয়ে দেবে ---- */}
+      {recentCustomers.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <p style={{ fontSize: 12, color: "#999", margin: "0 0 6px 0" }}>দ্রুত বেছে নিন:</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {recentCustomers.map((c) => (
+              <button
+                key={c.phone}
+                type="button"
+                onClick={() => setPhone(c.phone)}
+                style={{
+                  padding: "6px 10px",
+                  background: phone === c.phone ? "#1e3a8a" : "#333",
+                  color: "white",
+                  border: "1px solid #555",
+                  borderRadius: 20,
+                  fontSize: 12,
+                }}
+              >
+                👤 {c.phone}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleCreditRequest}>
         <input
           type="tel"
