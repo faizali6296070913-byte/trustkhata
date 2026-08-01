@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { auth, db } from "@/lib/firebase";
-import { doc, onSnapshot, updateDoc, setDoc, serverTimestamp, collection, query, where, orderBy, arrayUnion } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, setDoc, serverTimestamp, collection, query, where, orderBy } from "firebase/firestore";
 import {
   onAuthStateChanged,
   signOut,
@@ -12,7 +12,6 @@ import {
 import { updateCustomerScore } from "@/lib/scoring";
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
-import { executeFifoSettlement } from "@/lib/settlement";
 import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
 
 // ---- নতুন: এরর মেসেজ আরও স্পষ্ট ও কার্যকরী করার জন্য ----
@@ -255,74 +254,63 @@ export default function CustomerDashboardPage() {
     setSettleSubmitting(false);
   };
 
-  // ---- নতুন: দোকানদারের দেওয়া PIN দিয়ে "মোট বাকি মেটান" কনফার্ম করা — FIFO অনুযায়ী automatically পুরনো এন্ট্রি থেকে কাটা হবে ----
+  // ---- বদলানো হয়েছে: PIN যাচাই ও টাকার হিসাব এখন সার্ভারে (API route) হয়, ব্রাউজারে না ----
   const confirmSettlement = async (req) => {
     const enteredPin = settlePinInputs[req.id] || "";
     setSettleError((prev) => ({ ...prev, [req.id]: "" }));
 
-    if (enteredPin !== req.pin) {
-      setSettleError((prev) => ({ ...prev, [req.id]: "ভুল PIN, আবার চেষ্টা করুন।" }));
+    if (!enteredPin) {
+      setSettleError((prev) => ({ ...prev, [req.id]: "PIN লিখুন।" }));
       return;
     }
 
     setSettleConfirming((prev) => ({ ...prev, [req.id]: true }));
     try {
-      await executeFifoSettlement(req.shopId, req.customerId, req.amount, req.customerPhone);
-      await updateDoc(doc(db, "settlementRequests", req.id), {
-        status: "completed",
-        completedAt: serverTimestamp(),
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/confirm-settlement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, requestId: req.id, pin: enteredPin }),
       });
-      setSettlePinInputs((prev) => ({ ...prev, [req.id]: "" }));
+      const data = await res.json();
+
+      if (!res.ok) {
+        setSettleError((prev) => ({ ...prev, [req.id]: data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+      } else {
+        setSettlePinInputs((prev) => ({ ...prev, [req.id]: "" }));
+      }
     } catch (err) {
       console.error(err);
-      setSettleError((prev) => ({
-        ...prev,
-        [req.id]: err.message || "সমস্যা হয়েছে, আবার চেষ্টা করুন।",
-      }));
+      setSettleError((prev) => ({ ...prev, [req.id]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
     }
     setSettleConfirming((prev) => ({ ...prev, [req.id]: false }));
   };
 
+  // ---- বদলানো হয়েছে: PIN যাচাই ও টাকার হিসাব এখন সার্ভারে (API route) হয়, ব্রাউজারে না ----
   const confirmPayment = async (txn) => {
     const enteredPin = pinInputs[txn.id] || "";
     setPinErrors((prev) => ({ ...prev, [txn.id]: "" }));
 
-    if (enteredPin !== txn.securityPIN) {
-      setPinErrors((prev) => ({ ...prev, [txn.id]: "ভুল PIN, আবার চেষ্টা করুন।" }));
+    if (!enteredPin) {
+      setPinErrors((prev) => ({ ...prev, [txn.id]: "PIN লিখুন।" }));
       return;
     }
 
     setPinConfirming((prev) => ({ ...prev, [txn.id]: true }));
-
-    const thisPayment = txn.pendingPaymentAmount || txn.amount;
-    const previousPaid = txn.amountPaid || 0;
-    const newAmountPaid = previousPaid + thisPayment;
-    const remaining = txn.amount - newAmountPaid;
-    const isFullyPaid = remaining <= 0;
-
     try {
-      const updates = {
-        amountPaid: newAmountPaid,
-        payments: arrayUnion({
-          amount: thisPayment,
-          paidAt: new Date().toISOString(),
-        }),
-      };
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/confirm-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, txnId: txn.id, pin: enteredPin }),
+      });
+      const data = await res.json();
 
-      if (isFullyPaid) {
-        updates.status = "paid";
-        updates.paidAt = serverTimestamp();
+      if (!res.ok) {
+        setPinErrors((prev) => ({ ...prev, [txn.id]: data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
       } else {
-        updates.status = "approved";
+        setPinInputs((prev) => ({ ...prev, [txn.id]: "" }));
       }
-
-      await updateDoc(doc(db, "transactions", txn.id), updates);
-
-      if (isFullyPaid) {
-        await updateCustomerScore(txn.customerPhone, "paid", txn.amount);
-      }
-
-      setPinInputs((prev) => ({ ...prev, [txn.id]: "" }));
     } catch (err) {
       console.error(err);
       setPinErrors((prev) => ({ ...prev, [txn.id]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));

@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
-import { updateCustomerScore } from "@/lib/scoring";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function ConfirmPaymentPage() {
   const params = useParams();
@@ -14,8 +14,20 @@ export default function ConfirmPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
-  const [fullyPaid, setFullyPaid] = useState(false); // ---- নতুন ----
-  const [remainingAfter, setRemainingAfter] = useState(0); // ---- নতুন ----
+  const [confirming, setConfirming] = useState(false);
+  const [fullyPaid, setFullyPaid] = useState(false);
+  const [remainingAfter, setRemainingAfter] = useState(0);
+  // ---- নতুন: auth state ঠিকভাবে ট্র্যাক করা, যাতে পেজ খোলার সাথে সাথেই ভুল করে "লগইন নেই" না দেখায় ----
+  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthReady(true);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (!txnId) return;
@@ -37,49 +49,43 @@ export default function ConfirmPaymentPage() {
   const handleConfirm = async (e) => {
     e.preventDefault();
     setError("");
-    if (pinInput !== txn.securityPIN) {
-      setError("ভুল PIN, আবার চেষ্টা করুন।");
-      return;
-    }
-
-    // ---- নতুন: এই কিস্তির টাকা যোগ করে দেখা হচ্ছে সম্পূর্ণ শোধ হয়ে গেল কিনা ----
-    const thisPayment = txn.pendingPaymentAmount || txn.amount; // পুরনো ডেটার জন্য fallback
-    const previousPaid = txn.amountPaid || 0;
-    const newAmountPaid = previousPaid + thisPayment;
-    const remaining = txn.amount - newAmountPaid;
-    const isFullyPaid = remaining <= 0;
-
-    setFullyPaid(isFullyPaid);
-    setRemainingAfter(remaining > 0 ? remaining : 0);
-    setDone(true); // সাথে সাথে UI বদলে দাও
+    setConfirming(true);
 
     try {
-      const updates = {
-        amountPaid: newAmountPaid,
-        payments: arrayUnion({
-          amount: thisPayment,
-          paidAt: new Date().toISOString(), // arrayUnion এর ভেতরে serverTimestamp ব্যবহার করা যায় না
-        }),
-      };
+      // ---- নতুন: PIN যাচাই ও টাকার হিসাব এখন সার্ভারে (API route) হয়, এই পেজে না ----
+      if (!authReady) {
+        setError("একটু অপেক্ষা করুন, লগইন যাচাই হচ্ছে...");
+        setConfirming(false);
+        return;
+      }
+      if (!user) {
+        setError("এই কাজটি করতে লগইন থাকা দরকার। কাস্টমার dashboard থেকে চেষ্টা করুন।");
+        setConfirming(false);
+        return;
+      }
+      const idToken = await user.getIdToken();
 
-      if (isFullyPaid) {
-        updates.status = "paid";
-        updates.paidAt = serverTimestamp();
-      } else {
-        // এখনো কিছু বাকি আছে, পরের কিস্তির জন্য 'approved' এ ফিরিয়ে দাও
-        updates.status = "approved";
+      const res = await fetch("/api/confirm-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, txnId, pin: pinInput }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+        setConfirming(false);
+        return;
       }
 
-      await updateDoc(doc(db, "transactions", txnId), updates);
-
-      // ---- নতুন: ট্রাস্ট স্কোর শুধু তখনই বাড়বে যখন পুরো টাকা শোধ হয়ে যাবে ----
-      // (এতে কেউ ছোট ছোট কিস্তিতে ভাগ করে বারবার স্কোর কারচুপি করতে পারবে না)
-      if (isFullyPaid) {
-        await updateCustomerScore(txn.customerPhone, "paid", txn.amount);
-      }
+      setFullyPaid(data.fullyPaid);
+      setRemainingAfter(data.remaining || 0);
+      setDone(true);
     } catch (err) {
       console.error(err);
+      setError("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
     }
+    setConfirming(false);
   };
 
   if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
@@ -123,8 +129,8 @@ export default function ConfirmPaymentPage() {
           required
           style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
         />
-        <button type="submit" style={{ width: "100%", padding: 10 }}>
-          কনফার্ম করুন
+        <button type="submit" disabled={confirming} style={{ width: "100%", padding: 10 }}>
+          {confirming ? "..." : "কনফার্ম করুন"}
         </button>
       </form>
       {error && <p style={{ color: "red" }}>{error}</p>}

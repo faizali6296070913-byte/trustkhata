@@ -93,6 +93,10 @@ export default function DashboardPage() {
   // ---- নতুন: কাস্টমারের পাঠানো "মোট বাকি মেটান" রিকোয়েস্টের জন্য state ----
   const [settlementRequests, setSettlementRequests] = useState([]);
   const [settleAccepting, setSettleAccepting] = useState({});
+  // ---- নতুন: PIN এখন সার্ভার থেকে আসে, তাই একবার দেখানোর জন্য লোকাল state এ রাখা হয় ----
+  // ---- (রিফ্রেশ করলে এই PIN আর দেখা যাবে না, কারণ hash করে রাখা হয় — তখন নতুন PIN তৈরি করতে হবে) ----
+  const [settlementPins, setSettlementPins] = useState({});
+  const [txnPins, setTxnPins] = useState({});
   const [lastPhone, setLastPhone] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -118,6 +122,7 @@ export default function DashboardPage() {
 
   // ---- নতুন: প্রতিটা transaction এর জন্য আলাদাভাবে পেমেন্ট ইনপুট রাখার state ----
   const [paymentInputs, setPaymentInputs] = useState({});
+  const [markingPaid, setMarkingPaid] = useState({});
   // ---- নতুন: প্রথমে শুধু সাম্প্রতিক লেনদেন দেখানো, দ্রুত লোড হওয়ার জন্য ----
   const [showAllTxns, setShowAllTxns] = useState(false);
 
@@ -411,15 +416,22 @@ export default function DashboardPage() {
     setEditSubmitting(false);
   };
 
+  // ---- বদলানো হয়েছে: PIN এখন ব্রাউজারে না, সার্ভারে (API route) তৈরি হয় ----
   const acceptSettlement = async (req) => {
     setSettleAccepting((prev) => ({ ...prev, [req.id]: true }));
-    const pin = Math.floor(1000 + Math.random() * 9000).toString();
     try {
-      await updateDoc(doc(db, "settlementRequests", req.id), {
-        status: "awaiting_pin",
-        pin,
-        acceptedAt: serverTimestamp(),
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/generate-settlement-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, requestId: req.id }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      } else {
+        setSettlementPins((prev) => ({ ...prev, [req.id]: data.pin }));
+      }
     } catch (err) {
       console.error(err);
       alert(getFriendlyErrorMessage(err));
@@ -427,10 +439,12 @@ export default function DashboardPage() {
     setSettleAccepting((prev) => ({ ...prev, [req.id]: false }));
   };
 
-  const markAsPaid = async (txn) => {
+  // ---- বদলানো হয়েছে: PIN এখন ব্রাউজারে না, সার্ভারে (API route) তৈরি হয় ----
+  // ---- overrideAmount: PIN রিজেনারেট করার সময় আগের নির্দিষ্ট কিস্তির পরিমাণ ব্যবহার করার জন্য ----
+  const markAsPaid = async (txn, overrideAmount) => {
     const remaining = txn.amount - (txn.amountPaid || 0);
     const enteredRaw = paymentInputs[txn.id];
-    const entered = enteredRaw ? Number(enteredRaw) : remaining;
+    const entered = overrideAmount ?? (enteredRaw ? Number(enteredRaw) : remaining);
 
     if (!entered || entered <= 0) {
       alert("সঠিক পরিমাণ লিখুন।");
@@ -441,18 +455,25 @@ export default function DashboardPage() {
       return;
     }
 
-    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    setMarkingPaid((prev) => ({ ...prev, [txn.id]: true }));
     try {
-      await updateDoc(doc(db, "transactions", txn.id), {
-        securityPIN: pin,
-        pendingPaymentAmount: entered, // ---- নতুন: এই কিস্তিতে কত টাকা কনফার্ম হবে ----
-        pinGeneratedAt: serverTimestamp(),
-        status: "awaiting_pin_confirmation",
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch("/api/generate-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, txnId: txn.id, paymentAmount: entered }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      } else {
+        setTxnPins((prev) => ({ ...prev, [txn.id]: data.pin }));
+      }
     } catch (err) {
       console.error(err);
       alert(getFriendlyErrorMessage(err));
     }
+    setMarkingPaid((prev) => ({ ...prev, [txn.id]: false }));
   };
 
   const copyLink = (link, id) => {
@@ -1115,9 +1136,24 @@ export default function DashboardPage() {
                   </button>
                 )}
                 {req.status === "awaiting_pin" && (
-                  <p style={{ margin: "8px 0 0 0", fontSize: 14, color: "#fbbf24" }}>
-                    🔑 PIN: <strong>{req.pin}</strong> — কাস্টমারকে এই PIN বলুন
-                  </p>
+                  settlementPins[req.id] ? (
+                    <p style={{ margin: "8px 0 0 0", fontSize: 14, color: "#fbbf24" }}>
+                      🔑 PIN: <strong>{settlementPins[req.id]}</strong> — কাস্টমারকে এই PIN বলুন
+                    </p>
+                  ) : (
+                    <div style={{ marginTop: 8 }}>
+                      <p style={{ margin: 0, fontSize: 12, color: "#999" }}>
+                        PIN আর দেখা যাচ্ছে না (পেজ রিফ্রেশ হয়েছিল)।
+                      </p>
+                      <button
+                        onClick={() => acceptSettlement(req)}
+                        disabled={settleAccepting[req.id]}
+                        style={{ width: "100%", padding: 8, marginTop: 4, background: "#333", color: "white", border: "1px solid #666" }}
+                      >
+                        {settleAccepting[req.id] ? "..." : "🔄 নতুন PIN তৈরি করুন"}
+                      </button>
+                    </div>
+                  )
                 )}
               </div>
             ))}
@@ -1351,9 +1387,10 @@ export default function DashboardPage() {
                   <button
                     onClick={() => markAsPaid(txn)}
                     disabled={
-                      paymentInputs[txn.id] !== undefined &&
-                      paymentInputs[txn.id] !== "" &&
-                      (Number(paymentInputs[txn.id]) <= 0 || Number(paymentInputs[txn.id]) > remaining)
+                      markingPaid[txn.id] ||
+                      (paymentInputs[txn.id] !== undefined &&
+                        paymentInputs[txn.id] !== "" &&
+                        (Number(paymentInputs[txn.id]) <= 0 || Number(paymentInputs[txn.id]) > remaining))
                     }
                     style={{
                       padding: "6px 10px",
@@ -1362,7 +1399,7 @@ export default function DashboardPage() {
                       border: "1px solid #666",
                     }}
                   >
-                    💰 নিশ্চিত করুন
+                    {markingPaid[txn.id] ? "..." : "💰 নিশ্চিত করুন"}
                   </button>
                 </div>
                 {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া ---- */}
@@ -1381,9 +1418,24 @@ export default function DashboardPage() {
 
             {txn.status === "awaiting_pin_confirmation" && (
               <>
-                <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
-                  এই কিস্তি: ₹{txn.pendingPaymentAmount} | PIN: {txn.securityPIN} (কাস্টমারকে দিন)
-                </p>
+                {txnPins[txn.id] ? (
+                  <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
+                    এই কিস্তি: ₹{txn.pendingPaymentAmount} | PIN: {txnPins[txn.id]} (কাস্টমারকে দিন)
+                  </p>
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ margin: 0, fontSize: 12, color: "#999" }}>
+                      PIN আর দেখা যাচ্ছে না (পেজ রিফ্রেশ হয়েছিল)।
+                    </p>
+                    <button
+                      onClick={() => markAsPaid(txn, txn.pendingPaymentAmount)}
+                      disabled={markingPaid[txn.id]}
+                      style={{ padding: 6, marginTop: 4, background: "#333", color: "white", border: "1px solid #666" }}
+                    >
+                      {markingPaid[txn.id] ? "..." : "🔄 নতুন PIN তৈরি করুন"}
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={() => copyLink(`/confirm-payment/${txn.id}`, txn.id)}
                   style={{
