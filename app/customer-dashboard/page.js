@@ -15,6 +15,19 @@ import { getFriendlyAuthError } from "@/lib/authErrors";
 import { executeFifoSettlement } from "@/lib/settlement";
 import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
 
+// ---- নতুন: এরর মেসেজ আরও স্পষ্ট ও কার্যকরী করার জন্য ----
+function getFriendlyErrorMessage(err) {
+  if (!err) return "একটা সমস্যা হয়েছে, আবার চেষ্টা করুন।";
+  const msg = (err.message || "").toLowerCase();
+  if (msg.includes("network") || msg.includes("fetch") || msg.includes("offline")) {
+    return "📶 ইন্টারনেট সংযোগে সমস্যা মনে হচ্ছে — সংযোগ চেক করে আবার চেষ্টা করুন।";
+  }
+  if (msg.includes("permission")) {
+    return "🔒 এই কাজটি করার অনুমতি নেই — লগ আউট করে আবার লগইন করে দেখুন।";
+  }
+  return "একটা সমস্যা হয়েছে, একটু পর আবার চেষ্টা করুন।";
+}
+
 export default function CustomerDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [customerData, setCustomerData] = useState(null);
@@ -336,7 +349,7 @@ export default function CustomerDashboardPage() {
       });
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(getFriendlyErrorMessage(err));
     }
     setEditRespondingId(null);
   };
@@ -358,7 +371,7 @@ export default function CustomerDashboardPage() {
       await updateCustomerScore(txn.customerPhone, decision === "approved" ? "approved" : "rejected", txn.amount);
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(getFriendlyErrorMessage(err));
     }
   };
 
@@ -690,7 +703,11 @@ export default function CustomerDashboardPage() {
       </div>
 
       <h3 style={{ marginTop: 30 }}>দোকান অনুযায়ী হিসাব</h3>
-      {shopList.length === 0 && <p>কোনো দোকানে লেনদেন নেই।</p>}
+      {shopList.length === 0 && (
+        <p style={{ color: "#999" }}>
+          এখনো কোনো দোকানে লেনদেন নেই — দোকানদার রিকোয়েস্ট পাঠালে এখানে দেখা যাবে।
+        </p>
+      )}
       {shopList.map((shop, idx) => {
         // ---- নতুন: এই দোকানের জন্য চলমান settlement request (যদি থাকে) খুঁজে বের করা ----
         const activeSettle = settlementRequests.find(
@@ -727,15 +744,31 @@ export default function CustomerDashboardPage() {
                       onChange={(e) =>
                         setSettleAmountInputs((prev) => ({ ...prev, [shop.shopId]: e.target.value }))
                       }
-                      style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
+                      style={{ display: "block", width: "100%", marginBottom: 4, padding: 8, boxSizing: "border-box" }}
                     />
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া ---- */}
+                    {settleAmountInputs[shop.shopId] && Number(settleAmountInputs[shop.shopId]) > shop.outstanding && (
+                      <p style={{ color: "#f97316", fontSize: 12, margin: "0 0 6px 0" }}>
+                        ⚠️ সর্বোচ্চ ₹{shop.outstanding} মেটানো যাবে
+                      </p>
+                    )}
+                    {settleAmountInputs[shop.shopId] && Number(settleAmountInputs[shop.shopId]) <= 0 && (
+                      <p style={{ color: "#f97316", fontSize: 12, margin: "0 0 6px 0" }}>
+                        ⚠️ সঠিক পরিমাণ লিখুন
+                      </p>
+                    )}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
                       <button
                         onClick={() => sendSettlementRequest(shop)}
-                        disabled={settleSubmitting}
+                        disabled={
+                          settleSubmitting ||
+                          !settleAmountInputs[shop.shopId] ||
+                          Number(settleAmountInputs[shop.shopId]) <= 0 ||
+                          Number(settleAmountInputs[shop.shopId]) > shop.outstanding
+                        }
                         style={{ flex: 1, padding: 8, background: "#16a34a", color: "white", border: "none" }}
                       >
-                        {settleSubmitting ? "..." : "রিকোয়েস্ট পাঠান"}
+                        {settleSubmitting ? "⏳ ..." : "রিকোয়েস্ট পাঠান"}
                       </button>
                       <button
                         onClick={() => setSettleFormOpenFor(null)}
@@ -793,7 +826,9 @@ export default function CustomerDashboardPage() {
       })}
 
       <h3 style={{ marginTop: 30 }}>সব লেনদেনের বিস্তারিত</h3>
-      {transactions.length === 0 && <p>কোনো রেকর্ড নেই।</p>}
+      {transactions.length === 0 && (
+        <p style={{ color: "#999" }}>এখনো কোনো লেনদেন হয়নি — এখানে আপনার সব লেনদেনের ইতিহাস দেখা যাবে।</p>
+      )}
       {(showAllTxns ? transactions : transactions.slice(0, 30)).map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
         const remaining = getRemaining(txn);

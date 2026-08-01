@@ -27,9 +27,7 @@ export default function AdminPage() {
   const [logs, setLogs] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [showRedFlagOnly, setShowRedFlagOnly] = useState(false);
-  // ---- নতুন: Block ফিচারের জন্য filter ও pagination ----
-  const [showBlockedOnly, setShowBlockedOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all"); // ---- বদলানো হয়েছে: দুটো আলাদা checkbox এর বদলে একটা মিলিত ফিল্টার ----
   const [customerPage, setCustomerPage] = useState(1);
   const CUSTOMERS_PER_PAGE = 50;
 
@@ -347,9 +345,15 @@ export default function AdminPage() {
     );
   });
 
+  const overdueCustomerIds = new Set(
+    overdueByCustomer.map((o) => o.customerId || o.customerPhone)
+  );
+
   const filteredCustomers = customers.filter((c) => {
-    if (showRedFlagOnly && !c.isRedFlagged) return false;
-    if (showBlockedOnly && !c.isBlockedByAdmin) return false;
+    // ---- বদলানো হয়েছে: search ও status filter এখন একসাথে কাজ করে ----
+    if (statusFilter === "redflag" && !c.isRedFlagged) return false;
+    if (statusFilter === "blocked" && !c.isBlockedByAdmin) return false;
+    if (statusFilter === "overdue" && !overdueCustomerIds.has(c.id) && !overdueCustomerIds.has(c.phone)) return false;
     if (!term) return true;
     return (
       (c.name || "").toLowerCase().includes(term) ||
@@ -404,7 +408,7 @@ export default function AdminPage() {
   // ---- নতুন: সার্চ/ফিল্টার বদলালে পেজ ১ এ ফিরে যাওয়া ----
   useEffect(() => {
     setCustomerPage(1);
-  }, [searchTerm, showRedFlagOnly, showBlockedOnly]);
+  }, [searchTerm, statusFilter]);
 
   if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
 
@@ -671,23 +675,25 @@ export default function AdminPage() {
       ))}
 
       <h3 style={{ marginTop: 30 }}>👤 কাস্টমার ({filteredCustomers.length})</h3>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 14 }}>
-        <input
-          type="checkbox"
-          checked={showRedFlagOnly}
-          onChange={(e) => setShowRedFlagOnly(e.target.checked)}
-        />
-        শুধু 🚩 রেড-ফ্ল্যাগড কাস্টমার দেখান
+      {/* ---- বদলানো হয়েছে: search এর সাথে সাথে একটা মিলিত status ফিল্টার — Overdue ফিল্টারও এখানে যোগ হলো ---- */}
+      <label style={{ fontSize: 13, color: "#999", display: "block", marginBottom: 4 }}>
+        তালিকা ফিল্টার করুন
       </label>
-      {/* ---- নতুন: শুধু ব্লকড কাস্টমার দেখার ফিল্টার ---- */}
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
-        <input
-          type="checkbox"
-          checked={showBlockedOnly}
-          onChange={(e) => setShowBlockedOnly(e.target.checked)}
-        />
-        শুধু 🚫 ব্লকড কাস্টমার দেখান
-      </label>
+      <select
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+        style={{ display: "block", width: "100%", marginBottom: 14, padding: 10, borderRadius: 6 }}
+      >
+        <option value="all">সবাই দেখান</option>
+        <option value="redflag">🚩 শুধু Red-Flagged কাস্টমার</option>
+        <option value="blocked">🚫 শুধু ব্লকড কাস্টমার</option>
+        <option value="overdue">⚠️ শুধু মেয়াদ পার হওয়া (Overdue) কাস্টমার</option>
+      </select>
+      {paginatedCustomers.length === 0 && (
+        <p style={{ color: "#999", fontSize: 13 }}>
+          এই ফিল্টারে কোনো কাস্টমার পাওয়া যায়নি — অন্য ফিল্টার বা সার্চ চেষ্টা করুন।
+        </p>
+      )}
       {paginatedCustomers.map((c) => (
         <div
           key={c.id}

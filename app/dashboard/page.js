@@ -36,6 +36,19 @@ const SHOP_TYPES = [
   "অন্যান্য",
 ];
 
+// ---- নতুন: এরর মেসেজ আরও স্পষ্ট ও কার্যকরী করার জন্য ----
+function getFriendlyErrorMessage(err) {
+  if (!err) return "একটা সমস্যা হয়েছে, আবার চেষ্টা করুন।";
+  const msg = (err.message || "").toLowerCase();
+  if (msg.includes("network") || msg.includes("fetch") || msg.includes("offline")) {
+    return "📶 ইন্টারনেট সংযোগে সমস্যা মনে হচ্ছে — সংযোগ চেক করে আবার চেষ্টা করুন।";
+  }
+  if (msg.includes("permission")) {
+    return "🔒 এই কাজটি করার অনুমতি নেই — অ্যাকাউন্টে সমস্যা থাকলে লগ আউট করে আবার লগইন করুন।";
+  }
+  return "একটা সমস্যা হয়েছে, একটু পর আবার চেষ্টা করুন।";
+}
+
 export default function DashboardPage() {
   const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -73,6 +86,7 @@ export default function DashboardPage() {
   const [dueDays, setDueDays] = useState("30");
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
+  const [creditRequestError, setCreditRequestError] = useState("");
   const [lastLink, setLastLink] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -258,6 +272,7 @@ export default function DashboardPage() {
     }
     setSubmitting(true);
     setSuccessMsg("");
+    setCreditRequestError("");
     try {
       const txnRef = doc(collection(db, "transactions"));
       const token = crypto.randomUUID() + crypto.randomUUID();
@@ -325,6 +340,8 @@ export default function DashboardPage() {
       setVerifiedByMe(false);
     } catch (err) {
       console.error(err);
+      // ---- বাগ ফিক্স: আগে এরর শুধু console এ লগ হতো, ইউজার কিছুই দেখতে পেতেন না ----
+      setCreditRequestError(getFriendlyErrorMessage(err));
     }
     setSubmitting(false);
   };
@@ -405,7 +422,7 @@ export default function DashboardPage() {
       });
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(getFriendlyErrorMessage(err));
     }
     setSettleAccepting((prev) => ({ ...prev, [req.id]: false }));
   };
@@ -434,7 +451,7 @@ export default function DashboardPage() {
       });
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(getFriendlyErrorMessage(err));
     }
   };
 
@@ -795,8 +812,15 @@ export default function DashboardPage() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           required
-          style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
+          style={{ display: "block", width: "100%", marginBottom: 4, padding: 8 }}
         />
+        {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া, সাবমিট করার আগেই ---- */}
+        {amount !== "" && (Number(amount) <= 0 || isNaN(Number(amount))) && (
+          <p style={{ color: "#f97316", fontSize: 12, margin: "0 0 10px 0" }}>
+            ⚠️ সঠিক পরিমাণ লিখুন (০ এর বেশি)
+          </p>
+        )}
+        {amount === "" && <div style={{ marginBottom: 10 }} />}
         {/* ---- নতুন: কতদিনের মধ্যে মেটাতে হবে, দোকানদার নিজে ঠিক করবেন ---- */}
         <label style={{ fontSize: 13, color: "#999", display: "block", marginBottom: 4 }}>
           কতদিনের মধ্যে মেটাতে হবে (দিন)
@@ -827,9 +851,17 @@ export default function DashboardPage() {
           </label>
         )}
 
-        <button type="submit" disabled={submitting || isCustomerBlocked} style={{ width: "100%", padding: 10 }}>
-          {isCustomerBlocked ? "🚫 এই কাস্টমারকে রিকোয়েস্ট পাঠানো যাবে না" : submitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
+        <button
+          type="submit"
+          disabled={submitting || isCustomerBlocked || !amount || Number(amount) <= 0}
+          style={{ width: "100%", padding: 10 }}
+        >
+          {isCustomerBlocked ? "🚫 এই কাস্টমারকে রিকোয়েস্ট পাঠানো যাবে না" : submitting ? "⏳ পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
         </button>
+        {/* ---- বাগ ফিক্স: আগে এরর দেখানোই হতো না, এখন স্পষ্টভাবে দেখানো হচ্ছে ---- */}
+        {creditRequestError && (
+          <p style={{ color: "red", fontSize: 13, marginTop: 8 }}>{creditRequestError}</p>
+        )}
       </form>
 
       {successMsg && <p style={{ color: "green" }}>{successMsg}</p>}
@@ -935,7 +967,7 @@ export default function DashboardPage() {
           }
         });
         const list = Object.values(customerSummary);
-        if (list.length === 0) return <p style={{ color: "#999" }}>কোনো কাস্টমার নেই।</p>;
+        if (list.length === 0) return <p style={{ color: "#999" }}>এখনো কোনো কাস্টমার নেই — নতুন রিকোয়েস্ট পাঠালে এখানে দেখা যাবে।</p>;
         return list.map((c) => (
           <div
             key={c.customerId}
@@ -954,7 +986,11 @@ export default function DashboardPage() {
       })()}
 
       <h3 style={{ marginTop: 30 }}>সাম্প্রতিক রিকোয়েস্টগুলো</h3>
-      {transactions.length === 0 && <p>কোনো রিকোয়েস্ট নেই।</p>}
+      {transactions.length === 0 && (
+        <p style={{ color: "#999" }}>
+          এখনো কোনো ক্রেডিট রিকোয়েস্ট পাঠানো হয়নি — ওপরের ফর্ম দিয়ে প্রথম রিকোয়েস্ট পাঠান।
+        </p>
+      )}
       {(showAllTxns ? transactions : transactions.slice(0, 30)).map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
         const approveLink = `/approve/${txn.approvalToken}`;
@@ -1135,6 +1171,11 @@ export default function DashboardPage() {
                   />
                   <button
                     onClick={() => markAsPaid(txn)}
+                    disabled={
+                      paymentInputs[txn.id] !== undefined &&
+                      paymentInputs[txn.id] !== "" &&
+                      (Number(paymentInputs[txn.id]) <= 0 || Number(paymentInputs[txn.id]) > remaining)
+                    }
                     style={{
                       padding: "6px 10px",
                       background: "#333",
@@ -1145,6 +1186,17 @@ export default function DashboardPage() {
                     💰 নিশ্চিত করুন
                   </button>
                 </div>
+                {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া ---- */}
+                {paymentInputs[txn.id] && Number(paymentInputs[txn.id]) > remaining && (
+                  <p style={{ color: "#f97316", fontSize: 12, margin: "4px 0 0 0" }}>
+                    ⚠️ সর্বোচ্চ ₹{remaining} নেওয়া যাবে
+                  </p>
+                )}
+                {paymentInputs[txn.id] && Number(paymentInputs[txn.id]) <= 0 && (
+                  <p style={{ color: "#f97316", fontSize: 12, margin: "4px 0 0 0" }}>
+                    ⚠️ সঠিক পরিমাণ লিখুন
+                  </p>
+                )}
               </div>
             )}
 
