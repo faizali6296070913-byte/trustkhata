@@ -375,31 +375,8 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  // ---- নতুন: লোডিং এর সময় ফাঁকা "skeleton" আকৃতি দেখানো ----
-  if (loading)
-    return (
-      <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-          <div style={{ width: 140, height: 26, background: "#2a2a2a", borderRadius: 4 }} />
-          <div style={{ width: 80, height: 36, background: "#2a2a2a", borderRadius: 4 }} />
-        </div>
-        {[1, 2, 3].map((i) => (
-          <div key={i} style={{ height: 60, background: "#1a1a1a", borderRadius: 6, marginBottom: 10 }} />
-        ))}
-        <style>{`
-          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-          div[style*="background: #2a2a2a"], div[style*="background: #1a1a1a"] { animation: pulse 1.5s ease-in-out infinite; }
-        `}</style>
-      </div>
-    );
-
-  const getScoreTier = (score) => {
-    if (score >= 70) return { label: "🟢 বিশ্বস্ত কাস্টমার", color: "green" };
-    if (score >= 40) return { label: "🟡 মাঝারি", color: "orange" };
-    return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
-  };
-
-  // ---- নতুন: Firestore Timestamp ও ISO string দুটোই handle করার জন্য helper ----
+  // ---- বাগ ফিক্স: এই hook (useMemo) আগে "if (loading) return" এর পরে ছিল, যেটা React এর নিয়ম ভঙ্গ করছিল
+  // এবং "Minified React error #310" দিয়ে পুরো পেজ ভেঙে দিচ্ছিল — এখন early return এর আগে আনা হলো ----
   const toMillis = (t) => {
     if (!t) return 0;
     if (t.toDate) return t.toDate().getTime();
@@ -407,7 +384,6 @@ export default function CustomerDashboardPage() {
     return 0;
   };
 
-  // ---- নতুন: সাম্প্রতিক Activity ফিড — কাস্টমারের নিজের সব দোকান মিলিয়ে ----
   const activityFeed = useMemo(() => {
     const events = [];
     transactions.forEach((t) => {
@@ -435,6 +411,30 @@ export default function CustomerDashboardPage() {
     });
     return events.sort((a, b) => b.time - a.time).slice(0, 8);
   }, [transactions]);
+
+  // ---- নতুন: লোডিং এর সময় ফাঁকা "skeleton" আকৃতি দেখানো ----
+  if (loading)
+    return (
+      <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ width: 140, height: 26, background: "#2a2a2a", borderRadius: 4 }} />
+          <div style={{ width: 80, height: 36, background: "#2a2a2a", borderRadius: 4 }} />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} style={{ height: 60, background: "#1a1a1a", borderRadius: 6, marginBottom: 10 }} />
+        ))}
+        <style>{`
+          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+          div[style*="background: #2a2a2a"], div[style*="background: #1a1a1a"] { animation: pulse 1.5s ease-in-out infinite; }
+        `}</style>
+      </div>
+    );
+
+  const getScoreTier = (score) => {
+    if (score >= 70) return { label: "🟢 বিশ্বস্ত কাস্টমার", color: "green" };
+    if (score >= 40) return { label: "🟡 মাঝারি", color: "orange" };
+    return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
+  };
 
   const statusMap = {
     pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },

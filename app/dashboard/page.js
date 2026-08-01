@@ -501,6 +501,105 @@ export default function DashboardPage() {
     setPwChangeSubmitting(false);
   };
 
+  // ---- বাগ ফিক্স: এই hook গুলো আগে "if (loading) return" এর পরে ছিল, যেটা React এর নিয়ম ভঙ্গ করছিল
+  // (hook conditional return এর পরে কল হচ্ছিল) এবং "Minified React error #310" দিচ্ছিল — এখন সব early return এর আগে আনা হলো ----
+
+  // ---- Firestore Timestamp ও ISO string দুটোই handle করার জন্য helper ----
+  const toMillis = (t) => {
+    if (!t) return 0;
+    if (t.toDate) return t.toDate().getTime();
+    if (typeof t === "string") return new Date(t).getTime();
+    return 0;
+  };
+
+  const isToday = (millis) => {
+    if (!millis) return false;
+    const d = new Date(millis);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  };
+
+  // ---- সাম্প্রতিক/নিয়মিত কাস্টমার — কতবার লেনদেন হয়েছে তার ভিত্তিতে সাজানো ----
+  const recentCustomers = useMemo(() => {
+    const freq = {};
+    transactions.forEach((t) => {
+      if (!t.customerPhone) return;
+      if (!freq[t.customerPhone]) {
+        freq[t.customerPhone] = { phone: t.customerPhone, count: 0, lastAt: 0 };
+      }
+      freq[t.customerPhone].count += 1;
+      freq[t.customerPhone].lastAt = Math.max(freq[t.customerPhone].lastAt, toMillis(t.createdAt));
+    });
+    return Object.values(freq)
+      .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt)
+      .slice(0, 6);
+  }, [transactions]);
+
+  // ---- আজকের সারসংক্ষেপ ----
+  const dailySummary = useMemo(() => {
+    let newCreditsToday = 0;
+    let paidToday = 0;
+    const customersToday = new Set();
+
+    transactions.forEach((t) => {
+      if (isToday(toMillis(t.createdAt))) {
+        newCreditsToday += t.amount || 0;
+        customersToday.add(t.customerPhone);
+      }
+      if (isToday(toMillis(t.paidAt))) {
+        customersToday.add(t.customerPhone);
+      }
+      (t.payments || []).forEach((p) => {
+        if (isToday(toMillis(p.paidAt))) {
+          paidToday += p.amount || 0;
+          customersToday.add(t.customerPhone);
+        }
+      });
+    });
+
+    return { newCreditsToday, paidToday, customerCount: customersToday.size };
+  }, [transactions]);
+
+  // ---- সাম্প্রতিক Activity ফিড — কী কী ঘটেছে তার সংক্ষিপ্ত তালিকা ----
+  const activityFeed = useMemo(() => {
+    const events = [];
+    transactions.forEach((t) => {
+      if (t.createdAt) {
+        events.push({
+          time: toMillis(t.createdAt),
+          icon: "🆕",
+          text: `${t.customerPhone} নতুন ₹${t.amount} বাকি নিয়েছেন`,
+        });
+      }
+      if (t.approvedAt) {
+        events.push({
+          time: toMillis(t.approvedAt),
+          icon: "✅",
+          text: `${t.customerPhone} ₹${t.amount} অ্যাপ্রুভ করেছেন`,
+        });
+      }
+      if (t.paidAt) {
+        events.push({
+          time: toMillis(t.paidAt),
+          icon: "💰",
+          text: `${t.customerPhone} সম্পূর্ণ ₹${t.amount} পরিশোধ করেছেন`,
+        });
+      }
+      (t.payments || []).forEach((p) => {
+        events.push({
+          time: toMillis(p.paidAt),
+          icon: "💵",
+          text: `${t.customerPhone} ₹${p.amount} পরিশোধ করেছেন`,
+        });
+      });
+    });
+    return events.sort((a, b) => b.time - a.time).slice(0, 8);
+  }, [transactions]);
+
   // ---- নতুন: লোডিং এর সময় ফাঁকা "skeleton" আকৃতি দেখানো, সাধারণ লেখার বদলে — এতে অ্যাপ দ্রুত মনে হয় ----
   if (loading)
     return (
@@ -575,102 +674,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  // ---- নতুন: Firestore Timestamp ও ISO string দুটোই handle করার জন্য helper ----
-  const toMillis = (t) => {
-    if (!t) return 0;
-    if (t.toDate) return t.toDate().getTime();
-    if (typeof t === "string") return new Date(t).getTime();
-    return 0;
-  };
-
-  const isToday = (millis) => {
-    if (!millis) return false;
-    const d = new Date(millis);
-    const now = new Date();
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    );
-  };
-
-  // ---- নতুন: সাম্প্রতিক/নিয়মিত কাস্টমার — কতবার লেনদেন হয়েছে তার ভিত্তিতে সাজানো ----
-  const recentCustomers = useMemo(() => {
-    const freq = {};
-    transactions.forEach((t) => {
-      if (!t.customerPhone) return;
-      if (!freq[t.customerPhone]) {
-        freq[t.customerPhone] = { phone: t.customerPhone, count: 0, lastAt: 0 };
-      }
-      freq[t.customerPhone].count += 1;
-      freq[t.customerPhone].lastAt = Math.max(freq[t.customerPhone].lastAt, toMillis(t.createdAt));
-    });
-    return Object.values(freq)
-      .sort((a, b) => b.count - a.count || b.lastAt - a.lastAt)
-      .slice(0, 6);
-  }, [transactions]);
-
-  // ---- নতুন: আজকের সারসংক্ষেপ ----
-  const dailySummary = useMemo(() => {
-    let newCreditsToday = 0;
-    let paidToday = 0;
-    const customersToday = new Set();
-
-    transactions.forEach((t) => {
-      if (isToday(toMillis(t.createdAt))) {
-        newCreditsToday += t.amount || 0;
-        customersToday.add(t.customerPhone);
-      }
-      if (isToday(toMillis(t.paidAt))) {
-        customersToday.add(t.customerPhone);
-      }
-      (t.payments || []).forEach((p) => {
-        if (isToday(toMillis(p.paidAt))) {
-          paidToday += p.amount || 0;
-          customersToday.add(t.customerPhone);
-        }
-      });
-    });
-
-    return { newCreditsToday, paidToday, customerCount: customersToday.size };
-  }, [transactions]);
-
-  // ---- নতুন: সাম্প্রতিক Activity ফিড — কী কী ঘটেছে তার সংক্ষিপ্ত তালিকা ----
-  const activityFeed = useMemo(() => {
-    const events = [];
-    transactions.forEach((t) => {
-      if (t.createdAt) {
-        events.push({
-          time: toMillis(t.createdAt),
-          icon: "🆕",
-          text: `${t.customerPhone} নতুন ₹${t.amount} বাকি নিয়েছেন`,
-        });
-      }
-      if (t.approvedAt) {
-        events.push({
-          time: toMillis(t.approvedAt),
-          icon: "✅",
-          text: `${t.customerPhone} ₹${t.amount} অ্যাপ্রুভ করেছেন`,
-        });
-      }
-      if (t.paidAt) {
-        events.push({
-          time: toMillis(t.paidAt),
-          icon: "💰",
-          text: `${t.customerPhone} সম্পূর্ণ ₹${t.amount} পরিশোধ করেছেন`,
-        });
-      }
-      (t.payments || []).forEach((p) => {
-        events.push({
-          time: toMillis(p.paidAt),
-          icon: "💵",
-          text: `${t.customerPhone} ₹${p.amount} পরিশোধ করেছেন`,
-        });
-      });
-    });
-    return events.sort((a, b) => b.time - a.time).slice(0, 8);
-  }, [transactions]);
 
   const statusMap = {
     pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
