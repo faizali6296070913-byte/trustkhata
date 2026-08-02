@@ -24,6 +24,7 @@ import {
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
+import { useLanguage } from "@/lib/LanguageContext";
 
 const SHOP_TYPES = [
   "মুদি দোকান",
@@ -50,6 +51,7 @@ function getFriendlyErrorMessage(err) {
 }
 
 export default function DashboardPage() {
+  const { t } = useLanguage();
   const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uid, setUid] = useState(null);
@@ -724,21 +726,21 @@ export default function DashboardPage() {
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button
             onClick={() => setShowSettings((v) => !v)}
-            title="সেটিংস"
+            title={t("settingsTitle")}
             style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
             ⚙️
           </button>
           <button
             onClick={handleLogout}
-            title="লগ আউট"
+            title={t("logout")}
             style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
             🚪
           </button>
         </div>
       </div>
-      <p style={{ fontSize: 13, color: "#999", margin: "6px 0 0 0" }}>✅ স্ট্যাটাস: {shopData.status}</p>
+      <p style={{ fontSize: 13, color: "#999", margin: "6px 0 0 0" }}>✅ {t("statusLabel")}: {shopData.status}</p>
 
       {/* ---- নতুন: আজকের সারসংক্ষেপ ---- */}
       <div
@@ -753,19 +755,19 @@ export default function DashboardPage() {
         }}
       >
         <div style={{ flex: "1 1 28%", minWidth: 90, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>আজ নতুন বাকি</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("newCreditToday")}</p>
           <p style={{ margin: "2px 0 0 0", fontSize: 17, fontWeight: "bold", color: "orange" }}>
             ₹{dailySummary.newCreditsToday}
           </p>
         </div>
         <div style={{ flex: "1 1 28%", minWidth: 90, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>আজ পরিশোধিত</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("paidToday")}</p>
           <p style={{ margin: "2px 0 0 0", fontSize: 17, fontWeight: "bold", color: "#4ade80" }}>
             ₹{dailySummary.paidToday}
           </p>
         </div>
         <div style={{ flex: "1 1 28%", minWidth: 90, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>আজকের কাস্টমার</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("customersToday")}</p>
           <p style={{ margin: "2px 0 0 0", fontSize: 17, fontWeight: "bold" }}>{dailySummary.customerCount}</p>
         </div>
       </div>
@@ -773,7 +775,7 @@ export default function DashboardPage() {
       {/* ---- নতুন: সাম্প্রতিক Activity ফিড ---- */}
       {activityFeed.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>🕐 সাম্প্রতিক কার্যক্রম</h3>
+          <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>🕐 {t("recentActivity")}</h3>
           <div style={{ background: "#1a1a1a", borderRadius: 8, padding: 10 }}>
             {activityFeed.map((ev, idx) => (
               <p
@@ -924,12 +926,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <h3 style={{ marginTop: 20 }}>নতুন ক্রেডিট রিকোয়েস্ট</h3>
+      <h3 style={{ marginTop: 20 }}>{t("newCreditRequest")}</h3>
 
       {/* ---- নতুন: নিয়মিত/সাম্প্রতিক কাস্টমার শর্টকাট — এক ক্লিকে ফোন নম্বর বসিয়ে দেবে ---- */}
       {recentCustomers.length > 0 && (
         <div style={{ marginBottom: 10 }}>
-          <p style={{ fontSize: 12, color: "#999", margin: "0 0 6px 0" }}>দ্রুত বেছে নিন:</p>
+          <p style={{ fontSize: 12, color: "#999", margin: "0 0 6px 0" }}>{t("quickSelect")}</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {recentCustomers.map((c) => (
               <button
@@ -955,19 +957,19 @@ export default function DashboardPage() {
       <form onSubmit={handleCreditRequest}>
         <input
           type="tel"
-          placeholder="কাস্টমারের ফোন (যেমন 9876543210)"
+          placeholder={t("customerPhonePlaceholder")}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           required
           style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
         />
 
-        {checkingScore && <p style={{ fontSize: 12, color: "#999" }}>স্কোর চেক হচ্ছে...</p>}
+        {checkingScore && <p style={{ fontSize: 12, color: "#999" }}>{t("checkingScore")}</p>}
 
         {/* ---- নতুন: এই নম্বরে কোনো নিবন্ধিত কাস্টমার না থাকলে জানিয়ে দেওয়া ---- */}
         {!checkingScore && isRegisteredCustomer === false && (
           <p style={{ fontSize: 13, color: "#999", marginBottom: 10 }}>
-            ℹ️ এই নম্বরে এখনো কোনো কাস্টমার অ্যাপে নিবন্ধিত (registered) নয়।
+            ℹ️ {t("notRegisteredCustomer")}
           </p>
         )}
 
@@ -981,26 +983,26 @@ export default function DashboardPage() {
                 fontWeight: "bold",
               }}
             >
-              {getScoreTier(customerScore).label} — স্কোর: {customerScore}/100
+              {getScoreTier(customerScore).label} — {t("score")}: {customerScore}/100
               {customerVerified && (
-                <span style={{ color: "#3b82f6", marginLeft: 6 }}>✅ দোকানদার-যাচাইকৃত</span>
+                <span style={{ color: "#3b82f6", marginLeft: 6 }}>✅ {t("shopVerified")}</span>
               )}
             </p>
             {customerFlagged && (
               <p style={{ fontSize: 13, margin: 0, color: "red", fontWeight: "bold" }}>
-                ⚠️ Red Flag — এই কাস্টমার বারবার রিকোয়েস্ট রিজেক্ট করেছে
+                ⚠️ {t("redFlagWarning")}
               </p>
             )}
             {/* ---- নতুন: এই কাস্টমারের মেয়াদ পার হওয়া (overdue) বাকি থাকলে সতর্কতা ---- */}
             {customerOverdueCount > 0 && (
               <p style={{ fontSize: 13, margin: "4px 0 0 0", color: "#f97316", fontWeight: "bold" }}>
-                ⚠️ এই কাস্টমারের {customerOverdueCount}টা বাকি মেয়াদ পার হয়ে গেছে (এই বা অন্য দোকানে) — সাবধানে বাকি দিন
+                ⚠️ {t("overdueWarningPrefix")} {customerOverdueCount} {t("overdueWarningSuffix")}
               </p>
             )}
             {/* ---- নতুন: Admin এই কাস্টমারকে ব্লক করে রাখলে সতর্কতা ---- */}
             {isCustomerBlocked && (
               <p style={{ fontSize: 13, margin: "4px 0 0 0", color: "red", fontWeight: "bold" }}>
-                🚫 এই কাস্টমারকে Admin ব্লক করে রেখেছেন — নতুন ক্রেডিট রিকোয়েস্ট পাঠানো যাবে না
+                🚫 {t("customerBlockedWarning")}
               </p>
             )}
           </div>
