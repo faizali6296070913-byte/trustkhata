@@ -13,6 +13,7 @@ import { updateCustomerScore } from "@/lib/scoring";
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
+import { useLanguage } from "@/lib/LanguageContext";
 
 // ---- নতুন: এরর মেসেজ আরও স্পষ্ট ও কার্যকরী করার জন্য ----
 function getFriendlyErrorMessage(err) {
@@ -28,6 +29,7 @@ function getFriendlyErrorMessage(err) {
 }
 
 export default function CustomerDashboardPage() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [customerData, setCustomerData] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -159,11 +161,11 @@ export default function CustomerDashboardPage() {
     setPwChangeSuccess("");
 
     if (newPassword.length < 6) {
-      setPwChangeError("নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+      setPwChangeError(t("pwTooShort"));
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setPwChangeError("নতুন পাসওয়ার্ড দুই জায়গায় মিলছে না।");
+      setPwChangeError(t("pwMismatch"));
       return;
     }
 
@@ -209,7 +211,7 @@ export default function CustomerDashboardPage() {
       setProfileSuccess("✅ প্রোফাইল আপডেট হয়েছে।");
     } catch (err) {
       console.error(err);
-      setProfileError("আপডেট করা যায়নি, আবার চেষ্টা করুন।");
+      setProfileError(t("profileUpdateFailed"));
     }
     setProfileSubmitting(false);
   };
@@ -222,7 +224,7 @@ export default function CustomerDashboardPage() {
     setSettleError((prev) => ({ ...prev, [shop.shopId]: "" }));
 
     if (!raw || isNaN(amount) || amount <= 0) {
-      setSettleError((prev) => ({ ...prev, [shop.shopId]: "সঠিক পরিমাণ লিখুন।" }));
+      setSettleError((prev) => ({ ...prev, [shop.shopId]: t("enterValidAmount") }));
       return;
     }
     if (amount > shop.outstanding) {
@@ -249,7 +251,7 @@ export default function CustomerDashboardPage() {
       setSettleFormOpenFor(null);
     } catch (err) {
       console.error(err);
-      setSettleError((prev) => ({ ...prev, [shop.shopId]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+      setSettleError((prev) => ({ ...prev, [shop.shopId]: t("genericError") }));
     }
     setSettleSubmitting(false);
   };
@@ -275,13 +277,13 @@ export default function CustomerDashboardPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setSettleError((prev) => ({ ...prev, [req.id]: data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+        setSettleError((prev) => ({ ...prev, [req.id]: data.error || t("genericError") }));
       } else {
         setSettlePinInputs((prev) => ({ ...prev, [req.id]: "" }));
       }
     } catch (err) {
       console.error(err);
-      setSettleError((prev) => ({ ...prev, [req.id]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+      setSettleError((prev) => ({ ...prev, [req.id]: t("genericError") }));
     }
     setSettleConfirming((prev) => ({ ...prev, [req.id]: false }));
   };
@@ -307,13 +309,13 @@ export default function CustomerDashboardPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setPinErrors((prev) => ({ ...prev, [txn.id]: data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+        setPinErrors((prev) => ({ ...prev, [txn.id]: data.error || t("genericError") }));
       } else {
         setPinInputs((prev) => ({ ...prev, [txn.id]: "" }));
       }
     } catch (err) {
       console.error(err);
-      setPinErrors((prev) => ({ ...prev, [txn.id]: "সমস্যা হয়েছে, আবার চেষ্টা করুন।" }));
+      setPinErrors((prev) => ({ ...prev, [txn.id]: t("genericError") }));
     }
     setPinConfirming((prev) => ({ ...prev, [txn.id]: false }));
   };
@@ -419,17 +421,17 @@ export default function CustomerDashboardPage() {
     );
 
   const getScoreTier = (score) => {
-    if (score >= 70) return { label: "🟢 বিশ্বস্ত কাস্টমার", color: "green" };
-    if (score >= 40) return { label: "🟡 মাঝারি", color: "orange" };
-    return { label: "🔴 ঝুঁকিপূর্ণ", color: "red" };
+    if (score >= 70) return { label: `🟢 ${t("trustedCustomer")}`, color: "green" };
+    if (score >= 40) return { label: `🟡 ${t("moderate")}`, color: "orange" };
+    return { label: `🔴 ${t("risky")}`, color: "red" };
   };
 
   const statusMap = {
-    pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
-    approved: { color: "green", label: "🟢 Approved" },
-    rejected: { color: "red", label: "🔴 Rejected" },
-    awaiting_pin_confirmation: { color: "orange", label: "🔑 PIN অপেক্ষমান" },
-    paid: { color: "blue", label: "✅ সম্পূর্ণ পরিশোধিত" },
+    pending_approval: { color: "#999", label: `⏳ ${t("statusPending")}` },
+    approved: { color: "green", label: `🟢 ${t("statusApproved")}` },
+    rejected: { color: "red", label: `🔴 ${t("statusRejected")}` },
+    awaiting_pin_confirmation: { color: "orange", label: `🔑 ${t("statusAwaitingPin")}` },
+    paid: { color: "blue", label: `✅ ${t("statusPaid")}` },
   };
 
   const score = customerData?.trustScore ?? 50;
@@ -468,18 +470,18 @@ export default function CustomerDashboardPage() {
     <div style={{ padding: 16, maxWidth: 480, margin: "auto" }}>
       {/* ---- বাগ ফিক্স: ছোট স্ক্রিনে হেডার ভিড় করার ঝুঁকি এড়াতে icon-only বাটন ও wrap ---- */}
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 20 }}>আমার প্রোফাইল</h2>
+        <h2 style={{ margin: 0, fontSize: 20 }}>{t("myProfile")}</h2>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button
             onClick={() => setShowSettings((v) => !v)}
-            title="সেটিংস"
+            title={t("settingsTitle")}
             style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
             ⚙️
           </button>
           <button
             onClick={handleLogout}
-            title="লগ আউট"
+            title={t("logout")}
             style={{ padding: "8px 10px", background: "#333", color: "white", border: "1px solid #666", borderRadius: 6, fontSize: 15 }}
           >
             🚪
@@ -491,15 +493,15 @@ export default function CustomerDashboardPage() {
       {transactions.filter((t) => t.status === "pending_approval").length > 0 && (
         <div style={{ background: "#3b2a00", border: "2px solid #f59e0b", padding: 14, marginTop: 14, borderRadius: 8 }}>
           <h3 style={{ margin: "0 0 10px 0", color: "#fbbf24" }}>
-            🔔 নতুন ক্রেডিট রিকোয়েস্ট এসেছে
+            🔔 {t("newCreditRequestArrived")}
           </h3>
           {transactions
-            .filter((t) => t.status === "pending_approval")
+            .filter((txn2) => txn2.status === "pending_approval")
             .map((txn) => (
               <div key={txn.id} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6 }}>
                 <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {txn.shopName}</p>
                 <p style={{ margin: "4px 0" }}>
-                  পরিমাণ: <span style={{ fontWeight: "bold" }}>₹{txn.amount}</span>
+                  {t("amountLabel")}: <span style={{ fontWeight: "bold" }}>₹{txn.amount}</span>
                   {txn.itemDetails ? ` — ${txn.itemDetails}` : ""}
                 </p>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -507,13 +509,13 @@ export default function CustomerDashboardPage() {
                     onClick={() => respond(txn, "approved")}
                     style={{ flex: 1, padding: 10, background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
                   >
-                    ✅ অ্যাপ্রুভ করুন
+                    ✅ {t("approveButton")}
                   </button>
                   <button
                     onClick={() => respond(txn, "rejected")}
                     style={{ flex: 1, padding: 10, background: "#dc2626", color: "white", border: "none", fontWeight: "bold" }}
                   >
-                    ❌ বাতিল করুন
+                    ❌ {t("rejectButton")}
                   </button>
                 </div>
               </div>
@@ -524,30 +526,30 @@ export default function CustomerDashboardPage() {
       {/* ---- নতুন: দোকানদার কোনো এন্ট্রি সংশোধনের অনুরোধ পাঠালে সবার ওপরে দেখানো ---- */}
       {editRequests.length > 0 && (
         <div style={{ background: "#1e293b", border: "2px solid #3b82f6", padding: 14, marginTop: 14, borderRadius: 8 }}>
-          <h3 style={{ margin: "0 0 10px 0", color: "#60a5fa" }}>✏️ সংশোধনের অনুরোধ এসেছে</h3>
+          <h3 style={{ margin: "0 0 10px 0", color: "#60a5fa" }}>✏️ {t("editRequestArrived")}</h3>
           {editRequests.map((req) => (
             <div key={req.id} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6 }}>
               <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {req.shopName}</p>
               <p style={{ margin: "4px 0" }}>
-                পরিমাণ: <span style={{ textDecoration: "line-through", color: "#999" }}>₹{req.oldAmount}</span>
+                {t("amountLabel")}: <span style={{ textDecoration: "line-through", color: "#999" }}>₹{req.oldAmount}</span>
                 {" → "}
                 <span style={{ fontWeight: "bold", color: "#60a5fa" }}>₹{req.newAmount}</span>
               </p>
-              {req.newItemDetails && <p style={{ margin: 0, fontSize: 13 }}>নতুন বিবরণ: {req.newItemDetails}</p>}
+              {req.newItemDetails && <p style={{ margin: 0, fontSize: 13 }}>{t("newDetailsLabel")}: {req.newItemDetails}</p>}
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => respondToEditRequest(req, "approved")}
                   disabled={editRespondingId === req.id}
                   style={{ flex: 1, padding: 10, background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
                 >
-                  ✅ সংশোধন গ্রহণ করুন
+                  ✅ {t("acceptEdit")}
                 </button>
                 <button
                   onClick={() => respondToEditRequest(req, "rejected")}
                   disabled={editRespondingId === req.id}
                   style={{ flex: 1, padding: 10, background: "#dc2626", color: "white", border: "none", fontWeight: "bold" }}
                 >
-                  ❌ প্রত্যাখ্যান করুন
+                  ❌ {t("rejectEdit")}
                 </button>
               </div>
             </div>
@@ -556,59 +558,59 @@ export default function CustomerDashboardPage() {
       )}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, marginTop: 12, borderRadius: 6 }}>
-          <h3 style={{ marginTop: 0 }}>✏️ প্রোফাইল তথ্য বদলান</h3>
+          <h3 style={{ marginTop: 0 }}>✏️ {t("editProfileInfo")}</h3>
           <form onSubmit={handleUpdateProfile}>
             <input
               type="text"
-              placeholder="পূর্ণ নাম"
+              placeholder={t("fullNamePlaceholder")}
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="রাস্তা/এলাকা"
+              placeholder={t("streetPlaceholder")}
               value={editStreet}
               onChange={(e) => setEditStreet(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="শহর"
+              placeholder={t("cityPlaceholder")}
               value={editCity}
               onChange={(e) => setEditCity(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="রাজ্য"
+              placeholder={t("statePlaceholder")}
               value={editState}
               onChange={(e) => setEditState(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="পিনকোড"
+              placeholder={t("pincodePlaceholder")}
               value={editPincode}
               onChange={(e) => setEditPincode(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="tel"
-              placeholder="বিকল্প ফোন নাম্বার (ঐচ্ছিক)"
+              placeholder={t("altPhonePlaceholder")}
               value={editAltPhone}
               onChange={(e) => setEditAltPhone(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="পেশা (ঐচ্ছিক)"
+              placeholder={t("occupationPlaceholder")}
               value={editOccupation}
               onChange={(e) => setEditOccupation(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
             />
             <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
-              {profileSubmitting ? "আপডেট হচ্ছে..." : "প্রোফাইল আপডেট করুন"}
+              {profileSubmitting ? t("updating") : t("updateProfile")}
             </button>
             {profileError && <p style={{ color: "red", fontSize: 13 }}>{profileError}</p>}
             {profileSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{profileSuccess}</p>}
@@ -616,12 +618,12 @@ export default function CustomerDashboardPage() {
 
           <hr style={{ margin: "16px 0", borderColor: "#333" }} />
 
-          <h3 style={{ marginTop: 0 }}>🔑 পাসওয়ার্ড বদলান</h3>
+          <h3 style={{ marginTop: 0 }}>🔑 {t("changePassword")}</h3>
           <form onSubmit={handleChangePassword}>
             <div style={{ position: "relative", marginBottom: 10 }}>
               <input
                 type={showCurrentPw ? "text" : "password"}
-                placeholder="বর্তমান পাসওয়ার্ড"
+                placeholder={t("currentPasswordPlaceholder")}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
@@ -639,7 +641,7 @@ export default function CustomerDashboardPage() {
             <div style={{ position: "relative", marginBottom: 10 }}>
               <input
                 type={showNewPw ? "text" : "password"}
-                placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+                placeholder={t("newPasswordPlaceholder")}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
@@ -656,7 +658,7 @@ export default function CustomerDashboardPage() {
 
             <input
               type={showNewPw ? "text" : "password"}
-              placeholder="নতুন পাসওয়ার্ড আবার লিখুন"
+              placeholder={t("confirmNewPasswordPlaceholder")}
               value={confirmNewPassword}
               onChange={(e) => setConfirmNewPassword(e.target.value)}
               required
@@ -664,7 +666,7 @@ export default function CustomerDashboardPage() {
             />
 
             <button type="submit" disabled={pwChangeSubmitting} style={{ width: "100%", padding: 10 }}>
-              {pwChangeSubmitting ? "পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড বদলান"}
+              {pwChangeSubmitting ? t("changing") : t("changePasswordButton")}
             </button>
             {pwChangeError && <p style={{ color: "red", fontSize: 13 }}>{pwChangeError}</p>}
             {pwChangeSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{pwChangeSuccess}</p>}
@@ -689,29 +691,29 @@ export default function CustomerDashboardPage() {
 
       {customerData?.altPhone && (
         <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
-          📞 বিকল্প নাম্বার: {customerData.altPhone}
+          📞 {t("altPhoneLabel")}: {customerData.altPhone}
         </p>
       )}
 
       {customerData?.occupation && (
         <p style={{ margin: 0, fontSize: 13, color: "#999" }}>
-          💼 পেশা: {customerData.occupation}
+          💼 {t("occupationLabel")}: {customerData.occupation}
         </p>
       )}
 
       <p style={{ color: tier.color, fontWeight: "bold", fontSize: 18, marginTop: 10 }}>
-        {tier.label} — স্কোর: {score}/100
+        {tier.label} — {t("score")}: {score}/100
       </p>
       {customerData?.isRedFlagged && (
         <p style={{ color: "red", fontWeight: "bold" }}>
-          ⚠️ আপনার প্রোফাইলে Red Flag আছে (বারবার রিজেক্ট করার কারণে)
+          ⚠️ {t("redFlagOnProfile")}
         </p>
       )}
 
       {/* ---- নতুন: সাম্প্রতিক Activity ফিড ---- */}
       {activityFeed.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>🕐 সাম্প্রতিক কার্যক্রম</h3>
+          <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>🕐 {t("recentActivity")}</h3>
           <div style={{ background: "#1a1a1a", borderRadius: 8, padding: 10 }}>
             {activityFeed.map((ev, idx) => (
               <p
@@ -733,27 +735,27 @@ export default function CustomerDashboardPage() {
 
       <div style={{ display: "flex", gap: 10, marginTop: 20, flexWrap: "wrap" }}>
         <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>মোট বাকি (অপরিশোধিত)</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("totalOutstanding")}</p>
           <p style={{ margin: 0, fontSize: 20, fontWeight: "bold", color: "orange" }}>₹{totalOutstanding}</p>
         </div>
         <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>মোট পরিশোধিত</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("totalPaid")}</p>
           <p style={{ margin: 0, fontSize: 20, fontWeight: "bold", color: "green" }}>₹{totalPaid}</p>
         </div>
         <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>বাকি আছে এমন দোকান</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("shopsWithDue")}</p>
           <p style={{ margin: 0, fontSize: 20, fontWeight: "bold" }}>{shopIdsWithDue.size}</p>
         </div>
         <div style={{ background: "#1a1a1a", padding: 12, flex: "1 1 45%", textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>মোট দোকান (সব মিলিয়ে)</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("totalShops")}</p>
           <p style={{ margin: 0, fontSize: 20, fontWeight: "bold" }}>{allShopIds.size}</p>
         </div>
       </div>
 
-      <h3 style={{ marginTop: 30 }}>দোকান অনুযায়ী হিসাব</h3>
+      <h3 style={{ marginTop: 30 }}>{t("shopWiseAccount")}</h3>
       {shopList.length === 0 && (
         <p style={{ color: "#999" }}>
-          এখনো কোনো দোকানে লেনদেন নেই — দোকানদার রিকোয়েস্ট পাঠালে এখানে দেখা যাবে।
+          {t("noShopTransactionsYet")}
         </p>
       )}
       {shopList.map((shop, idx) => {
@@ -765,10 +767,10 @@ export default function CustomerDashboardPage() {
         return (
           <div key={idx} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6, wordBreak: "break-word" }}>
             <div onClick={() => (window.location.href = `/shop-ledger/${shop.shopId}`)} style={{ cursor: "pointer" }}>
-              <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span></p>
+              <p style={{ margin: 0, fontWeight: "bold" }}>🏪 {shop.shopName} <span style={{ fontSize: 11, color: "#3b82f6" }}>{t("viewDetails")} →</span></p>
               <p style={{ margin: 0, fontSize: 13 }}>
-                বাকি: <span style={{ color: shop.outstanding > 0 ? "orange" : "#999" }}>₹{shop.outstanding}</span>
-                {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{shop.paid}</span>
+                {t("outstandingLabel")}: <span style={{ color: shop.outstanding > 0 ? "orange" : "#999" }}>₹{shop.outstanding}</span>
+                {"  |  "}{t("paidLabel")}: <span style={{ color: "green" }}>₹{shop.paid}</span>
               </p>
             </div>
 
@@ -780,14 +782,14 @@ export default function CustomerDashboardPage() {
                     onClick={() => setSettleFormOpenFor(shop.shopId)}
                     style={{ width: "100%", padding: 8, background: "#1e3a8a", color: "white", border: "none" }}
                   >
-                    💰 মোট বাকি মেটান
+                    💰 {t("settleTotalDue")}
                   </button>
                 ) : (
                   <div>
                     <input
                       type="number"
                       step="0.01"
-                      placeholder={`কত টাকা দিচ্ছেন (সর্বোচ্চ ₹${shop.outstanding})`}
+                      placeholder={`${t("howMuchPaying")} (${t("maxLabel")} ₹${shop.outstanding})`}
                       value={settleAmountInputs[shop.shopId] || ""}
                       onChange={(e) =>
                         setSettleAmountInputs((prev) => ({ ...prev, [shop.shopId]: e.target.value }))
@@ -797,12 +799,12 @@ export default function CustomerDashboardPage() {
                     {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া ---- */}
                     {settleAmountInputs[shop.shopId] && Number(settleAmountInputs[shop.shopId]) > shop.outstanding && (
                       <p style={{ color: "#f97316", fontSize: 12, margin: "0 0 6px 0" }}>
-                        ⚠️ সর্বোচ্চ ₹{shop.outstanding} মেটানো যাবে
+                        ⚠️ {t("maxSettleable")} ₹{shop.outstanding}
                       </p>
                     )}
                     {settleAmountInputs[shop.shopId] && Number(settleAmountInputs[shop.shopId]) <= 0 && (
                       <p style={{ color: "#f97316", fontSize: 12, margin: "0 0 6px 0" }}>
-                        ⚠️ সঠিক পরিমাণ লিখুন
+                        ⚠️ {t("enterValidAmount")}
                       </p>
                     )}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
@@ -816,13 +818,13 @@ export default function CustomerDashboardPage() {
                         }
                         style={{ flex: 1, padding: 8, background: "#16a34a", color: "white", border: "none" }}
                       >
-                        {settleSubmitting ? "⏳ ..." : "রিকোয়েস্ট পাঠান"}
+                        {settleSubmitting ? "⏳ ..." : t("sendRequestShort")}
                       </button>
                       <button
                         onClick={() => setSettleFormOpenFor(null)}
                         style={{ padding: "8px 14px", background: "#333", color: "white", border: "1px solid #666" }}
                       >
-                        বাতিল
+                        {t("cancel")}
                       </button>
                     </div>
                     {settleError[shop.shopId] && (
@@ -836,7 +838,7 @@ export default function CustomerDashboardPage() {
             {/* ---- নতুন: রিকোয়েস্ট পাঠানো হয়েছে, দোকানদারের accept করার অপেক্ষায় ---- */}
             {activeSettle?.status === "pending" && (
               <p style={{ marginTop: 8, fontSize: 13, color: "#fbbf24" }}>
-                ⏳ ₹{activeSettle.amount} মেটানোর অনুরোধ পাঠানো হয়েছে, দোকানদারের অনুমোদনের অপেক্ষায়।
+                ⏳ ₹{activeSettle.amount} {t("settleRequestSentWaiting")}
               </p>
             )}
 
@@ -844,12 +846,12 @@ export default function CustomerDashboardPage() {
             {activeSettle?.status === "awaiting_pin" && (
               <div style={{ marginTop: 8, background: "#3b2a00", padding: 10, borderRadius: 6 }}>
                 <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#fbbf24" }}>
-                  দোকানদার ₹{activeSettle.amount} এর জন্য PIN দিয়েছেন — সেই PIN নিচে লিখুন:
+                  {t("shopGavePinFor")} ₹{activeSettle.amount} — {t("enterPinBelow")}
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <input
                     type="text"
-                    placeholder="PIN দিন"
+                    placeholder={t("enterPinPlaceholder")}
                     value={settlePinInputs[activeSettle.id] || ""}
                     onChange={(e) =>
                       setSettlePinInputs((prev) => ({ ...prev, [activeSettle.id]: e.target.value }))
@@ -861,7 +863,7 @@ export default function CustomerDashboardPage() {
                     disabled={settleConfirming[activeSettle.id]}
                     style={{ padding: "8px 14px", background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
                   >
-                    {settleConfirming[activeSettle.id] ? "..." : "কনফার্ম"}
+                    {settleConfirming[activeSettle.id] ? "..." : t("confirmButton")}
                   </button>
                 </div>
                 {settleError[activeSettle.id] && (
@@ -873,9 +875,9 @@ export default function CustomerDashboardPage() {
         );
       })}
 
-      <h3 style={{ marginTop: 30 }}>সব লেনদেনের বিস্তারিত</h3>
+      <h3 style={{ marginTop: 30 }}>{t("allTransactionsDetail")}</h3>
       {transactions.length === 0 && (
-        <p style={{ color: "#999" }}>এখনো কোনো লেনদেন হয়নি — এখানে আপনার সব লেনদেনের ইতিহাস দেখা যাবে।</p>
+        <p style={{ color: "#999" }}>{t("noTransactionsYet")}</p>
       )}
       {(showAllTxns ? transactions : transactions.slice(0, 30)).map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
@@ -895,7 +897,7 @@ export default function CustomerDashboardPage() {
             <p style={{ margin: 0 }}>🏪 {txn.shopName}</p>
             {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
             <p style={{ margin: 0, fontSize: 18, fontWeight: "bold", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-              পরিমাণ: ₹{txn.amount}
+              {t("amountLabel")}: ₹{txn.amount}
               {txn.wasEdited && (
                 <span
                   style={{
@@ -907,25 +909,25 @@ export default function CustomerDashboardPage() {
                     borderRadius: 999,
                   }}
                 >
-                  ✏️ সম্পাদিত
+                  ✏️ {t("edited")}
                 </span>
               )}
             </p>
             {txn.itemDetails && (
-              <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>বিবরণ: {txn.itemDetails}</p>
+              <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>{t("detailsLabel")}: {txn.itemDetails}</p>
             )}
 
             {/* ---- নতুন: আংশিক পরিশোধের অগ্রগতি ---- */}
             {(txn.amountPaid || 0) > 0 && txn.status !== "paid" && (
               <p style={{ margin: 0, fontSize: 12, color: "#4ade80" }}>
-                পরিশোধিত: ₹{txn.amountPaid} | বাকি: ₹{remaining}
+                {t("paidLabel")}: ₹{txn.amountPaid} | {t("remainingLabel")}: ₹{remaining}
               </p>
             )}
 
             {/* ---- নতুন: মেয়াদ পার হয়ে গেলে সতর্কতা দেখানো ---- */}
             {isOverdue(txn) && (
               <p style={{ margin: "2px 0", fontSize: 12, color: "#f97316", fontWeight: "bold" }}>
-                ⚠️ মেয়াদ পার হয়ে গেছে ({getOverdueDays(txn)} দিন) — দ্রুত মেটান
+                ⚠️ {t("overdueBy")} ({getOverdueDays(txn)} {t("days")}) — {t("settleSoon")}
               </p>
             )}
 
@@ -937,13 +939,13 @@ export default function CustomerDashboardPage() {
                   onClick={() => respond(txn, "approved")}
                   style={{ flex: 1, padding: 8, background: "green", color: "white", border: "none" }}
                 >
-                  ✅ Approve
+                  ✅ {t("approveButton")}
                 </button>
                 <button
                   onClick={() => respond(txn, "rejected")}
                   style={{ flex: 1, padding: 8, background: "red", color: "white", border: "none" }}
                 >
-                  ❌ Reject
+                  ❌ {t("rejectButton")}
                 </button>
               </div>
             )}
@@ -952,12 +954,12 @@ export default function CustomerDashboardPage() {
             {txn.status === "awaiting_pin_confirmation" && (
               <div style={{ marginTop: 8 }}>
                 <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#fbbf24" }}>
-                  দোকানদার ₹{txn.pendingPaymentAmount || txn.amount} এর জন্য PIN দিয়েছেন — সেই PIN নিচে লিখুন:
+                  {t("shopGavePinFor")} ₹{txn.pendingPaymentAmount || txn.amount} — {t("enterPinBelow")}
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <input
                     type="text"
-                    placeholder="PIN দিন"
+                    placeholder={t("enterPinPlaceholder")}
                     value={pinInputs[txn.id] || ""}
                     onChange={(e) =>
                       setPinInputs((prev) => ({ ...prev, [txn.id]: e.target.value }))
@@ -969,7 +971,7 @@ export default function CustomerDashboardPage() {
                     disabled={pinConfirming[txn.id]}
                     style={{ padding: "8px 14px", background: "#16a34a", color: "white", border: "none", fontWeight: "bold" }}
                   >
-                    {pinConfirming[txn.id] ? "..." : "কনফার্ম"}
+                    {pinConfirming[txn.id] ? "..." : t("confirmButton")}
                   </button>
                 </div>
                 {pinErrors[txn.id] && (
@@ -987,7 +989,7 @@ export default function CustomerDashboardPage() {
           onClick={() => setShowAllTxns(true)}
           style={{ width: "100%", padding: 10, background: "#333", color: "white", border: "1px solid #666", marginTop: 8 }}
         >
-          আরও দেখুন ({transactions.length - 30} টি বাকি)
+          {t("showMore")} ({transactions.length - 30} {t("remaining")})
         </button>
       )}
     </div>
