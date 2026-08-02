@@ -8,8 +8,10 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getFriendlyAuthError } from "@/lib/authErrors";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   const [mode, setMode] = useState("password");
   const [phonePw, setPhonePw] = useState("");
   const [password, setPassword] = useState("");
@@ -102,7 +104,7 @@ export default function LoginPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>🏪 দোকানদার লগইন</h2>
+      <h2>🏪 {t("shopkeeperLoginTitle")}</h2>
 
       <div style={{ display: "flex", marginBottom: 20 }}>
         <button
@@ -115,7 +117,7 @@ export default function LoginPage() {
             border: "none",
           }}
         >
-          পাসওয়ার্ড দিয়ে
+          {t("withPassword")}
         </button>
         <button
           onClick={() => setMode("otp")}
@@ -127,7 +129,7 @@ export default function LoginPage() {
             border: "none",
           }}
         >
-          OTP দিয়ে
+          {t("withOtp")}
         </button>
       </div>
 
@@ -135,7 +137,7 @@ export default function LoginPage() {
         <form onSubmit={handlePasswordLogin}>
           <input
             type="tel"
-            placeholder="ফোন নাম্বার"
+            placeholder={t("phoneOnly")}
             value={phonePw}
             onChange={(e) => setPhonePw(e.target.value)}
             required
@@ -145,7 +147,7 @@ export default function LoginPage() {
           <div style={{ position: "relative", marginBottom: 10 }}>
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="পাসওয়ার্ড"
+              placeholder={t("passwordPlaceholder")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -170,10 +172,10 @@ export default function LoginPage() {
           </div>
 
           <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
-            {submitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
+            {submitting ? t("loggingIn") : t("loginButton")}
           </button>
           <a href="/forgot-password" style={{ display: "block", marginTop: 10, fontSize: 13, color: "#999" }}>
-            পাসওয়ার্ড ভুলে গেছেন?
+            {t("forgotPassword")}
           </a>
         </form>
       )}
@@ -184,7 +186,7 @@ export default function LoginPage() {
             <form onSubmit={sendOtp}>
               <input
                 type="tel"
-                placeholder="ফোন নাম্বার"
+                placeholder={t("phoneOnly")}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -202,7 +204,7 @@ export default function LoginPage() {
                   cursor: sendingOtp ? "not-allowed" : "pointer",
                 }}
               >
-                {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
+                {sendingOtp ? `⏳ ${t("sending")}` : t("sendOtp")}
               </button>
             </form>
           )}
@@ -210,7 +212,7 @@ export default function LoginPage() {
             <form onSubmit={verifyOtp}>
               <input
                 type="text"
-                placeholder="OTP কোড দিন"
+                placeholder={t("otpCodePlaceholder")}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 required
@@ -227,7 +229,7 @@ export default function LoginPage() {
                   cursor: verifyingOtp ? "not-allowed" : "pointer",
                 }}
               >
-                {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
+                {verifyingOtp ? `⏳ ${t("verifying")}` : t("verifyButton")}
               </button>
             </form>
           )}
