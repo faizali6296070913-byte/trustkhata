@@ -699,11 +699,11 @@ export default function DashboardPage() {
   }
 
   const statusMap = {
-    pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
-    approved: { color: "green", label: "🟢 Approved" },
-    rejected: { color: "red", label: "🔴 Rejected" },
-    awaiting_pin_confirmation: { color: "orange", label: "🔑 PIN অপেক্ষমান" },
-    paid: { color: "blue", label: "✅ সম্পূর্ণ পরিশোধিত" },
+    pending_approval: { color: "#999", label: `⏳ ${t("statusPending")}` },
+    approved: { color: "green", label: `🟢 ${t("statusApproved")}` },
+    rejected: { color: "red", label: `🔴 ${t("statusRejected")}` },
+    awaiting_pin_confirmation: { color: "orange", label: `🔑 ${t("statusAwaitingPin")}` },
+    paid: { color: "blue", label: `✅ ${t("statusPaid")}` },
   };
 
   return (
@@ -798,18 +798,18 @@ export default function DashboardPage() {
       {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, borderRadius: 6 }}>
-          <h3 style={{ marginTop: 0 }}>✏️ দোকানের তথ্য বদলান</h3>
+          <h3 style={{ marginTop: 0 }}>✏️ {t("editShopInfo")}</h3>
           <form onSubmit={handleUpdateShopProfile}>
             <input
               type="text"
-              placeholder="দোকানের নাম"
+              placeholder={t("shopNamePlaceholder")}
               value={editShopName}
               onChange={(e) => setEditShopName(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="মালিকের নাম"
+              placeholder={t("ownerNamePlaceholder")}
               value={editOwnerName}
               onChange={(e) => setEditOwnerName(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
@@ -827,7 +827,7 @@ export default function DashboardPage() {
             </select>
             <input
               type="number"
-              placeholder="কতদিন ধরে ব্যবসা করছেন (বছর)"
+              placeholder={t("yearsInBusinessPlaceholder")}
               value={editYearsInBusiness}
               onChange={(e) => setEditYearsInBusiness(e.target.value)}
               min="0"
@@ -835,34 +835,34 @@ export default function DashboardPage() {
             />
             <input
               type="text"
-              placeholder="রাস্তা/এলাকা"
+              placeholder={t("streetPlaceholder")}
               value={editStreet}
               onChange={(e) => setEditStreet(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="শহর"
+              placeholder={t("cityPlaceholder")}
               value={editCity}
               onChange={(e) => setEditCity(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="রাজ্য"
+              placeholder={t("statePlaceholder")}
               value={editState}
               onChange={(e) => setEditState(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
             />
             <input
               type="text"
-              placeholder="পিনকোড"
+              placeholder={t("pincodePlaceholder")}
               value={editPincode}
               onChange={(e) => setEditPincode(e.target.value)}
               style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
             />
             <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
-              {profileSubmitting ? "আপডেট হচ্ছে..." : "দোকানের তথ্য আপডেট করুন"}
+              {profileSubmitting ? t("updating") : t("updateShopInfo")}
             </button>
             {profileError && <p style={{ color: "red", fontSize: 13 }}>{profileError}</p>}
             {profileSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{profileSuccess}</p>}
@@ -870,12 +870,12 @@ export default function DashboardPage() {
 
           <hr style={{ margin: "16px 0", borderColor: "#333" }} />
 
-          <h3 style={{ marginTop: 0 }}>🔑 পাসওয়ার্ড বদলান</h3>
+          <h3 style={{ marginTop: 0 }}>🔑 {t("changePassword")}</h3>
           <form onSubmit={handleChangePassword}>
             <div style={{ position: "relative", marginBottom: 10 }}>
               <input
                 type={showCurrentPw ? "text" : "password"}
-                placeholder="বর্তমান পাসওয়ার্ড"
+                placeholder={t("currentPasswordPlaceholder")}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
@@ -893,7 +893,7 @@ export default function DashboardPage() {
             <div style={{ position: "relative", marginBottom: 10 }}>
               <input
                 type={showNewPw ? "text" : "password"}
-                placeholder="নতুন পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+                placeholder={t("newPasswordPlaceholder")}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
@@ -910,7 +910,7 @@ export default function DashboardPage() {
 
             <input
               type={showNewPw ? "text" : "password"}
-              placeholder="নতুন পাসওয়ার্ড আবার লিখুন"
+              placeholder={t("confirmNewPasswordPlaceholder")}
               value={confirmNewPassword}
               onChange={(e) => setConfirmNewPassword(e.target.value)}
               required
@@ -918,7 +918,7 @@ export default function DashboardPage() {
             />
 
             <button type="submit" disabled={pwChangeSubmitting} style={{ width: "100%", padding: 10 }}>
-              {pwChangeSubmitting ? "পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড বদলান"}
+              {pwChangeSubmitting ? t("changing") : t("changePasswordButton")}
             </button>
             {pwChangeError && <p style={{ color: "red", fontSize: 13 }}>{pwChangeError}</p>}
             {pwChangeSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{pwChangeSuccess}</p>}
@@ -1120,13 +1120,13 @@ export default function DashboardPage() {
       {/* ---- নতুন: কাস্টমারদের পাঠানো "মোট বাকি মেটান" রিকোয়েস্ট ---- */}
       {settlementRequests.filter((r) => r.status === "pending" || r.status === "awaiting_pin").length > 0 && (
         <div style={{ marginTop: 20 }}>
-          <h3>💰 বাকি মেটানোর অনুরোধ</h3>
+          <h3>💰 {t("settlementRequestsTitle")}</h3>
           {settlementRequests
             .filter((r) => r.status === "pending" || r.status === "awaiting_pin")
             .map((req) => (
               <div key={req.id} style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, borderRadius: 6 }}>
                 <p style={{ margin: 0 }}>
-                  👤 {req.customerPhone} — <span style={{ fontWeight: "bold" }}>₹{req.amount}</span> মেটাতে চান
+                  👤 {req.customerPhone} — <span style={{ fontWeight: "bold" }}>₹{req.amount}</span> {t("wantsToSettle")}
                 </p>
                 {req.status === "pending" && (
                   <button
@@ -1134,25 +1134,25 @@ export default function DashboardPage() {
                     disabled={settleAccepting[req.id]}
                     style={{ width: "100%", padding: 8, marginTop: 8, background: "#16a34a", color: "white", border: "none" }}
                   >
-                    {settleAccepting[req.id] ? "..." : "✅ অ্যাপ্রুভ করে PIN তৈরি করুন"}
+                    {settleAccepting[req.id] ? "..." : `✅ ${t("approveGeneratePin")}`}
                   </button>
                 )}
                 {req.status === "awaiting_pin" && (
                   settlementPins[req.id] ? (
                     <p style={{ margin: "8px 0 0 0", fontSize: 14, color: "#fbbf24" }}>
-                      🔑 PIN: <strong>{settlementPins[req.id]}</strong> — কাস্টমারকে এই PIN বলুন
+                      🔑 PIN: <strong>{settlementPins[req.id]}</strong> — {t("tellCustomerPin")}
                     </p>
                   ) : (
                     <div style={{ marginTop: 8 }}>
                       <p style={{ margin: 0, fontSize: 12, color: "#999" }}>
-                        PIN আর দেখা যাচ্ছে না (পেজ রিফ্রেশ হয়েছিল)।
+                        {t("pinNotVisibleRefresh")}
                       </p>
                       <button
                         onClick={() => acceptSettlement(req)}
                         disabled={settleAccepting[req.id]}
                         style={{ width: "100%", padding: 8, marginTop: 4, background: "#333", color: "white", border: "1px solid #666" }}
                       >
-                        {settleAccepting[req.id] ? "..." : "🔄 নতুন PIN তৈরি করুন"}
+                        {settleAccepting[req.id] ? "..." : `🔄 ${t("generateNewPin")}`}
                       </button>
                     </div>
                   )
@@ -1162,7 +1162,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <h3 style={{ marginTop: 30 }}>👤 কাস্টমার অনুযায়ী হিসাব</h3>
+      <h3 style={{ marginTop: 30 }}>👤 {t("customerWiseAccount")}</h3>
       {(() => {
         const customerSummary = {};
         transactions.forEach((t) => {
@@ -1184,7 +1184,7 @@ export default function DashboardPage() {
           }
         });
         const list = Object.values(customerSummary);
-        if (list.length === 0) return <p style={{ color: "#999" }}>এখনো কোনো কাস্টমার নেই — নতুন রিকোয়েস্ট পাঠালে এখানে দেখা যাবে।</p>;
+        if (list.length === 0) return <p style={{ color: "#999" }}>{t("noCustomersYet")}</p>;
         return list.map((c) => (
           <div
             key={c.customerId}
@@ -1192,20 +1192,20 @@ export default function DashboardPage() {
             style={{ background: "#1a1a1a", padding: 12, marginBottom: 8, cursor: "pointer", borderRadius: 6 }}
           >
             <p style={{ margin: 0, fontWeight: "bold" }}>
-              👤 {c.customerPhone} <span style={{ fontSize: 11, color: "#3b82f6" }}>বিস্তারিত দেখুন →</span>
+              👤 {c.customerPhone} <span style={{ fontSize: 11, color: "#3b82f6" }}>{t("viewDetails")} →</span>
             </p>
             <p style={{ margin: 0, fontSize: 13 }}>
-              বাকি: <span style={{ color: c.outstanding > 0 ? "orange" : "#999" }}>₹{c.outstanding}</span>
-              {"  |  "}পরিশোধিত: <span style={{ color: "green" }}>₹{c.paid}</span>
+              {t("outstandingLabel")}: <span style={{ color: c.outstanding > 0 ? "orange" : "#999" }}>₹{c.outstanding}</span>
+              {"  |  "}{t("paidLabel")}: <span style={{ color: "green" }}>₹{c.paid}</span>
             </p>
           </div>
         ));
       })()}
 
-      <h3 style={{ marginTop: 30 }}>সাম্প্রতিক রিকোয়েস্টগুলো</h3>
+      <h3 style={{ marginTop: 30 }}>{t("recentRequestsTitle")}</h3>
       {transactions.length === 0 && (
         <p style={{ color: "#999" }}>
-          এখনো কোনো ক্রেডিট রিকোয়েস্ট পাঠানো হয়নি — ওপরের ফর্ম দিয়ে প্রথম রিকোয়েস্ট পাঠান।
+          {t("noRequestsYet")}
         </p>
       )}
       {(showAllTxns ? transactions : transactions.slice(0, 30)).map((txn) => {
@@ -1229,12 +1229,12 @@ export default function DashboardPage() {
             <p style={{ margin: 0 }}>
               👤 {txn.customerPhone}
               {txn.verifiedByShopkeeper && (
-                <span style={{ color: "#3b82f6", fontSize: 11, marginLeft: 6 }}>✅ যাচাইকৃত</span>
+                <span style={{ color: "#3b82f6", fontSize: 11, marginLeft: 6 }}>✅ {t("verified")}</span>
               )}
             </p>
             {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
             <p style={{ margin: 0, fontSize: 18, fontWeight: "bold", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-              পরিমাণ: ₹{txn.amount}
+              {t("amountLabel")}: ₹{txn.amount}
               {txn.wasEdited && (
                 <span
                   style={{
@@ -1246,24 +1246,24 @@ export default function DashboardPage() {
                     borderRadius: 999,
                   }}
                 >
-                  ✏️ সম্পাদিত
+                  ✏️ {t("edited")}
                 </span>
               )}
             </p>
             {txn.itemDetails && (
-              <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>বিবরণ: {txn.itemDetails}</p>
+              <p style={{ margin: 0, fontSize: 13, color: "#ccc" }}>{t("detailsLabel")}: {txn.itemDetails}</p>
             )}
             {/* ---- নতুন: মেয়াদ পার হয়ে গেলে সতর্কতা দেখানো ---- */}
             {isOverdue(txn) && (
               <p style={{ margin: "2px 0", fontSize: 12, color: "#f97316", fontWeight: "bold" }}>
-                ⚠️ মেয়াদ পার হয়ে গেছে ({getOverdueDays(txn)} দিন)
+                ⚠️ {t("overdueBy")} ({getOverdueDays(txn)} {t("days")})
               </p>
             )}
 
             {/* ---- নতুন: আংশিক পরিশোধের অগ্রগতি দেখানো ---- */}
             {amountPaid > 0 && txn.status !== "paid" && (
               <p style={{ margin: 0, fontSize: 12, color: "#4ade80" }}>
-                এ পর্যন্ত পরিশোধিত: ₹{amountPaid} | বাকি: ₹{remaining}
+                {t("paidSoFar")}: ₹{amountPaid} | {t("remainingLabel")}: ₹{remaining}
               </p>
             )}
 
@@ -1277,7 +1277,7 @@ export default function DashboardPage() {
               if (pendingEdit) {
                 return (
                   <p style={{ margin: "6px 0 0 0", fontSize: 12, color: "#fbbf24" }}>
-                    ✏️ সংশোধনের অনুরোধ (₹{pendingEdit.oldAmount} → ₹{pendingEdit.newAmount}) কাস্টমারের অনুমোদনের অপেক্ষায়
+                    ✏️ {t("editRequestPending")} (₹{pendingEdit.oldAmount} → ₹{pendingEdit.newAmount}) {t("waitingCustomerApproval")}
                   </p>
                 );
               }
@@ -1286,14 +1286,14 @@ export default function DashboardPage() {
                   <div style={{ marginTop: 8, background: "#0d0d0d", padding: 10, borderRadius: 6 }}>
                     <input
                       type="number"
-                      placeholder={`নতুন পরিমাণ (বর্তমান ₹${txn.amount})`}
+                      placeholder={`${t("newAmountPlaceholder")} (${t("currentAmountLabel")} ₹${txn.amount})`}
                       value={editAmountInput}
                       onChange={(e) => setEditAmountInput(e.target.value)}
                       style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
                     />
                     <input
                       type="text"
-                      placeholder="নতুন বিবরণ (ঐচ্ছিক)"
+                      placeholder={t("newDetailsPlaceholder")}
                       value={editDetailsInput}
                       onChange={(e) => setEditDetailsInput(e.target.value)}
                       style={{ display: "block", width: "100%", marginBottom: 6, padding: 8, boxSizing: "border-box" }}
@@ -1304,7 +1304,7 @@ export default function DashboardPage() {
                         disabled={editSubmitting}
                         style={{ flex: 1, padding: 8, background: "#1e3a8a", color: "white", border: "none" }}
                       >
-                        {editSubmitting ? "..." : "অনুরোধ পাঠান"}
+                        {editSubmitting ? "..." : t("sendRequestShort")}
                       </button>
                       <button
                         onClick={() => {
@@ -1313,7 +1313,7 @@ export default function DashboardPage() {
                         }}
                         style={{ padding: "8px 14px", background: "#333", color: "white", border: "1px solid #666" }}
                       >
-                        বাতিল
+                        {t("cancel")}
                       </button>
                     </div>
                     {editError && <p style={{ color: "red", fontSize: 12, margin: "4px 0 0 0" }}>{editError}</p>}
@@ -1330,7 +1330,7 @@ export default function DashboardPage() {
                   }}
                   style={{ marginTop: 8, padding: "6px 12px", fontSize: 12, background: "#333", color: "white", border: "1px solid #666" }}
                 >
-                  ✏️ সংশোধনের অনুরোধ পাঠান
+                  ✏️ {t("sendEditRequest")}
                 </button>
               );
             })()}
@@ -1340,7 +1340,7 @@ export default function DashboardPage() {
                 <a
                   href={buildWhatsAppLink(
                     txn.customerPhone,
-                    `আপনার একটি বাকি অনুরোধ এসেছে। অনুমোদন বা প্রত্যাখ্যান করতে এখানে ক্লিক করুন: ${
+                    `${t("whatsappCreditMessage")} ${
                       (process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : ""))
                     }${approveLink}`
                   )}
@@ -1354,7 +1354,7 @@ export default function DashboardPage() {
                     textDecoration: "none",
                   }}
                 >
-                  📱 WhatsApp এ পাঠান
+                  📱 {t("sendViaWhatsapp")}
                 </a>
                 <button
                   onClick={() => copyLink(approveLink, txn.id)}
@@ -1365,7 +1365,7 @@ export default function DashboardPage() {
                     border: "1px solid #666",
                   }}
                 >
-                  {copiedId === txn.id ? "✅ কপি হয়েছে" : "📋 লিংক কপি করুন"}
+                  {copiedId === txn.id ? `✅ ${t("copied")}` : `📋 ${t("copyLink")}`}
                 </button>
               </div>
             )}
@@ -1374,7 +1374,7 @@ export default function DashboardPage() {
             {txn.status === "approved" && (
               <div style={{ marginTop: 8 }}>
                 <p style={{ fontSize: 12, color: "#999", margin: "0 0 4px 0" }}>
-                  আজ কত টাকা পেয়েছেন? (সর্বোচ্চ ₹{remaining})
+                  {t("howMuchReceivedToday")} ({t("maxLabel")} ₹{remaining})
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   <input
@@ -1401,18 +1401,18 @@ export default function DashboardPage() {
                       border: "1px solid #666",
                     }}
                   >
-                    {markingPaid[txn.id] ? "..." : "💰 নিশ্চিত করুন"}
+                    {markingPaid[txn.id] ? "..." : `💰 ${t("confirmButton")}`}
                   </button>
                 </div>
                 {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া ---- */}
                 {paymentInputs[txn.id] && Number(paymentInputs[txn.id]) > remaining && (
                   <p style={{ color: "#f97316", fontSize: 12, margin: "4px 0 0 0" }}>
-                    ⚠️ সর্বোচ্চ ₹{remaining} নেওয়া যাবে
+                    ⚠️ {t("maxTakeable")} ₹{remaining}
                   </p>
                 )}
                 {paymentInputs[txn.id] && Number(paymentInputs[txn.id]) <= 0 && (
                   <p style={{ color: "#f97316", fontSize: 12, margin: "4px 0 0 0" }}>
-                    ⚠️ সঠিক পরিমাণ লিখুন
+                    ⚠️ {t("enterValidAmount")}
                   </p>
                 )}
               </div>
@@ -1422,19 +1422,19 @@ export default function DashboardPage() {
               <>
                 {txnPins[txn.id] ? (
                   <p style={{ fontSize: 12, color: "orange", marginTop: 8 }}>
-                    এই কিস্তি: ₹{txn.pendingPaymentAmount} | PIN: {txnPins[txn.id]} (কাস্টমারকে দিন)
+                    {t("thisInstallment")}: ₹{txn.pendingPaymentAmount} | PIN: {txnPins[txn.id]} ({t("giveToCustomer")})
                   </p>
                 ) : (
                   <div style={{ marginTop: 8 }}>
                     <p style={{ margin: 0, fontSize: 12, color: "#999" }}>
-                      PIN আর দেখা যাচ্ছে না (পেজ রিফ্রেশ হয়েছিল)।
+                      {t("pinNotVisibleRefresh")}
                     </p>
                     <button
                       onClick={() => markAsPaid(txn, txn.pendingPaymentAmount)}
                       disabled={markingPaid[txn.id]}
                       style={{ padding: 6, marginTop: 4, background: "#333", color: "white", border: "1px solid #666" }}
                     >
-                      {markingPaid[txn.id] ? "..." : "🔄 নতুন PIN তৈরি করুন"}
+                      {markingPaid[txn.id] ? "..." : `🔄 ${t("generateNewPin")}`}
                     </button>
                   </div>
                 )}
@@ -1448,7 +1448,7 @@ export default function DashboardPage() {
                     border: "1px solid #666",
                   }}
                 >
-                  {copiedId === txn.id ? "✅ কপি হয়েছে" : "📋 লিংক কপি করুন"}
+                  {copiedId === txn.id ? `✅ ${t("copied")}` : `📋 ${t("copyLink")}`}
                 </button>
               </>
             )}
@@ -1462,7 +1462,7 @@ export default function DashboardPage() {
           onClick={() => setShowAllTxns(true)}
           style={{ width: "100%", padding: 10, background: "#333", color: "white", border: "1px solid #666", marginTop: 8 }}
         >
-          আরও দেখুন ({transactions.length - 30} টি বাকি)
+          {t("showMore")} ({transactions.length - 30} {t("remaining")})
         </button>
       )}
     </div>
