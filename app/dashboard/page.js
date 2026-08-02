@@ -1010,7 +1010,7 @@ export default function DashboardPage() {
 
         <input
           type="number"
-          placeholder="টাকার পরিমাণ"
+          placeholder={t("amountPlaceholder")}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           required
@@ -1019,24 +1019,24 @@ export default function DashboardPage() {
         {/* ---- নতুন: টাইপ করার সাথে সাথেই ভুল পরিমাণ ধরিয়ে দেওয়া, সাবমিট করার আগেই ---- */}
         {amount !== "" && (Number(amount) <= 0 || isNaN(Number(amount))) && (
           <p style={{ color: "#f97316", fontSize: 12, margin: "0 0 10px 0" }}>
-            ⚠️ সঠিক পরিমাণ লিখুন (০ এর বেশি)
+            ⚠️ {t("invalidAmountWarning")}
           </p>
         )}
         {amount === "" && <div style={{ marginBottom: 10 }} />}
         {/* ---- নতুন: কতদিনের মধ্যে মেটাতে হবে, দোকানদার নিজে ঠিক করবেন ---- */}
         <label style={{ fontSize: 13, color: "#999", display: "block", marginBottom: 4 }}>
-          কতদিনের মধ্যে মেটাতে হবে (দিন)
+          {t("dueDaysLabel")}
         </label>
         <input
           type="number"
-          placeholder="যেমন ৩০"
+          placeholder={t("dueDaysPlaceholder")}
           value={dueDays}
           onChange={(e) => setDueDays(e.target.value)}
           min="1"
           style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
         />
         <textarea
-          placeholder="জিনিসের বিবরণ (ঐচ্ছিক)"
+          placeholder={t("itemDetailsPlaceholder")}
           value={itemDetails}
           onChange={(e) => setItemDetails(e.target.value)}
           style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
@@ -1049,7 +1049,7 @@ export default function DashboardPage() {
               checked={verifiedByMe}
               onChange={(e) => setVerifiedByMe(e.target.checked)}
             />
-            আমি এই ব্যক্তিকে সরাসরি চিনি ও শনাক্ত করেছি
+            {t("iKnowThisPerson")}
           </label>
         )}
 
@@ -1058,7 +1058,7 @@ export default function DashboardPage() {
           disabled={submitting || isCustomerBlocked || !amount || Number(amount) <= 0}
           style={{ width: "100%", padding: 10 }}
         >
-          {isCustomerBlocked ? "🚫 এই কাস্টমারকে রিকোয়েস্ট পাঠানো যাবে না" : submitting ? "⏳ পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
+          {isCustomerBlocked ? `🚫 ${t("cannotSendToBlocked")}` : submitting ? `⏳ ${t("sending")}` : t("sendRequest")}
         </button>
         {/* ---- বাগ ফিক্স: আগে এরর দেখানোই হতো না, এখন স্পষ্টভাবে দেখানো হচ্ছে ---- */}
         {creditRequestError && (
@@ -1073,7 +1073,7 @@ export default function DashboardPage() {
           <a
             href={buildWhatsAppLink(
               lastPhone,
-              `আপনার একটি বাকি অনুরোধ এসেছে। অনুমোদন বা প্রত্যাখ্যান করতে এখানে ক্লিক করুন: ${lastLink}`
+              `${t("whatsappCreditMessage")} ${lastLink}`
             )}
             target="_blank"
             rel="noopener noreferrer"
@@ -1088,7 +1088,7 @@ export default function DashboardPage() {
               textDecoration: "none",
             }}
           >
-            📱 WhatsApp এ পাঠান
+            📱 {t("sendViaWhatsapp")}
           </a>
           {/* ---- নতুন: কাস্টমারের WhatsApp না থাকলে, লিংক কপি করে SMS/অন্য মাধ্যমে পাঠানোর সুবিধা ---- */}
           <button
@@ -1109,10 +1109,10 @@ export default function DashboardPage() {
               fontWeight: "bold",
             }}
           >
-            {linkCopied ? "✅ কপি হয়েছে!" : "🔗 লিংক কপি করুন (WhatsApp না থাকলে)"}
+            {linkCopied ? `✅ ${t("copied")}` : `🔗 ${t("copyLinkNoWhatsapp")}`}
           </button>
           <p style={{ fontSize: 12, color: "#999", marginTop: 4 }}>
-            কাস্টমার নিজের একাউন্টে লগইন করলেও এই রিকোয়েস্ট সরাসরি দেখতে পাবেন।
+            {t("customerCanSeeRequestNote")}
           </p>
         </>
       )}
