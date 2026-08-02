@@ -9,8 +9,10 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function CustomerLoginPage() {
+  const { t } = useLanguage();
   const [mode, setMode] = useState("password");
 
   const [pwPhone, setPwPhone] = useState("");
@@ -107,7 +109,7 @@ export default function CustomerLoginPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>কাস্টমার লগইন</h2>
+      <h2>{t("customerLoginTitle")}</h2>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
         <button
@@ -120,7 +122,7 @@ export default function CustomerLoginPage() {
             border: "none",
           }}
         >
-          পাসওয়ার্ড দিয়ে
+          {t("withPassword")}
         </button>
         <button
           onClick={() => setMode("otp")}
@@ -132,7 +134,7 @@ export default function CustomerLoginPage() {
             border: "none",
           }}
         >
-          OTP দিয়ে
+          {t("withOtp")}
         </button>
       </div>
 
@@ -140,7 +142,7 @@ export default function CustomerLoginPage() {
         <form onSubmit={handlePasswordLogin}>
           <input
             type="tel"
-            placeholder="ফোন নাম্বার (যেমন 9876543210)"
+            placeholder={t("phoneNumberPlaceholder")}
             value={pwPhone}
             onChange={(e) => setPwPhone(e.target.value)}
             required
@@ -150,7 +152,7 @@ export default function CustomerLoginPage() {
           <div style={{ position: "relative", marginBottom: 10 }}>
             <input
               type={showPwPassword ? "text" : "password"}
-              placeholder="পাসওয়ার্ড"
+              placeholder={t("passwordPlaceholder")}
               value={pwPassword}
               onChange={(e) => setPwPassword(e.target.value)}
               required
@@ -175,14 +177,14 @@ export default function CustomerLoginPage() {
           </div>
 
           <button type="submit" disabled={pwSubmitting} style={{ width: "100%", padding: 10 }}>
-            {pwSubmitting ? "লগইন হচ্ছে..." : "লগইন করুন"}
+            {pwSubmitting ? t("loggingIn") : t("loginButton")}
           </button>
           {pwError && <p style={{ color: "red", fontSize: 13 }}>{pwError}</p>}
           <a
             href="/customer-forgot-password"
             style={{ display: "block", textAlign: "center", marginTop: 10, fontSize: 13, color: "#999" }}
           >
-            পাসওয়ার্ড ভুলে গেছেন?
+            {t("forgotPassword")}
           </a>
         </form>
       )}
@@ -193,7 +195,7 @@ export default function CustomerLoginPage() {
             <form onSubmit={sendOtp}>
               <input
                 type="tel"
-                placeholder="ফোন নাম্বার (যেমন 9876543210)"
+                placeholder={t("phoneNumberPlaceholder")}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
@@ -211,7 +213,7 @@ export default function CustomerLoginPage() {
                   cursor: sendingOtp ? "not-allowed" : "pointer",
                 }}
               >
-                {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
+                {sendingOtp ? `⏳ ${t("sending")}` : t("sendOtp")}
               </button>
             </form>
           )}
@@ -220,7 +222,7 @@ export default function CustomerLoginPage() {
             <form onSubmit={verifyOtp}>
               <input
                 type="text"
-                placeholder="OTP কোড দিন"
+                placeholder={t("otpCodePlaceholder")}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 required
@@ -237,7 +239,7 @@ export default function CustomerLoginPage() {
                   cursor: verifyingOtp ? "not-allowed" : "pointer",
                 }}
               >
-                {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
+                {verifyingOtp ? `⏳ ${t("verifying")}` : t("verifyButton")}
               </button>
             </form>
           )}
