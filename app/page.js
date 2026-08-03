@@ -5,8 +5,29 @@ export default function HomePage() {
   const { t } = useLanguage();
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto", textAlign: "center" }}>
-      <h1 style={{ marginTop: 60 }}>📒 Digital Halkhata</h1>
-      <p style={{ color: "#999", marginBottom: 40 }}>{t("homeTagline")}</p>
+      <h1 style={{ marginTop: 40 }}>📒 Digital Halkhata</h1>
+      <p style={{ color: "#999", marginBottom: 24 }}>{t("homeTagline")}</p>
+
+      {/* ---- নতুন: নতুন ব্যবহারকারীর বিশ্বাস অর্জনের জন্য সংক্ষিপ্ত "কীভাবে কাজ করে" ---- */}
+      <div
+        style={{
+          background: "#1a1a1a",
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 32,
+          textAlign: "left",
+        }}
+      >
+        <p style={{ margin: "0 0 10px 0", fontSize: 14 }}>
+          🏪 {t("howItWorks1")}
+        </p>
+        <p style={{ margin: "0 0 10px 0", fontSize: 14 }}>
+          ✅ {t("howItWorks2")}
+        </p>
+        <p style={{ margin: 0, fontSize: 14 }}>
+          🔒 {t("howItWorks3")}
+        </p>
+      </div>
 
       <a
         href="/login"
@@ -18,6 +39,7 @@ export default function HomePage() {
           fontWeight: "bold",
           textDecoration: "none",
           marginBottom: 16,
+          borderRadius: 6,
         }}
       >
         🏪 {t("joinAsShopkeeper")}
@@ -32,6 +54,7 @@ export default function HomePage() {
           color: "white",
           fontWeight: "bold",
           textDecoration: "none",
+          borderRadius: 6,
         }}
       >
         👤 {t("joinAsCustomer")}
