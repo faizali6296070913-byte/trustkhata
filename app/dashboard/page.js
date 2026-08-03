@@ -96,6 +96,8 @@ export default function DashboardPage() {
   const [editPincode, setEditPincode] = useState("");
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState("");
+  // ---- নতুন: ভুল টাচে দোকানের তথ্য বদলে না যায়, তাই ডিফল্টভাবে ফর্ম লক থাকবে ----
+  const [shopFieldsUnlocked, setShopFieldsUnlocked] = useState(false);
   const [profileError, setProfileError] = useState("");
 
   const [phone, setPhone] = useState("");
@@ -386,10 +388,11 @@ export default function DashboardPage() {
         shopAddress: `${editStreet}, ${editCity}, ${editState} - ${editPincode}`,
         address: { street: editStreet, city: editCity, state: editState, pincode: editPincode },
       });
-      setProfileSuccess("✅ দোকানের তথ্য আপডেট হয়েছে।");
+      setProfileSuccess(`✅ ${t("shopProfileUpdatedSuccess")}`);
+      setShopFieldsUnlocked(false); // ---- নতুন: সেভ হওয়ার পর আবার ফর্ম লক করে দেওয়া ----
     } catch (err) {
       console.error(err);
-      setProfileError("আপডেট করা যায়নি, আবার চেষ্টা করুন।");
+      setProfileError(t("profileUpdateFailed"));
     }
     setProfileSubmitting(false);
   };
@@ -919,26 +922,51 @@ export default function DashboardPage() {
       {/* ---- নতুন: সেটিংস প্যানেল (পাসওয়ার্ড বদলানো) ---- */}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, borderRadius: 6 }}>
-          <h3 style={{ marginTop: 0 }}>✏️ {t("editShopInfo")}</h3>
-          <form onSubmit={handleUpdateShopProfile}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>✏️ {t("editShopInfo")}</h3>
+            {/* ---- নতুন: পেন্সিল আইকন — ভুল টাচে দোকানের তথ্য বদলে না যায় ---- */}
+            <button
+              type="button"
+              onClick={() => setShopFieldsUnlocked((v) => !v)}
+              style={{
+                padding: "6px 10px",
+                background: shopFieldsUnlocked ? "#2563eb" : "#333",
+                color: "white",
+                border: "1px solid #666",
+                borderRadius: 6,
+                fontSize: 13,
+              }}
+            >
+              {shopFieldsUnlocked ? `🔓 ${t("unlocked")}` : `✏️ ${t("tapToEdit")}`}
+            </button>
+          </div>
+          {!shopFieldsUnlocked && (
+            <p style={{ fontSize: 12, color: "#999", margin: "6px 0 0 0" }}>
+              🔒 {t("profileLockedHint")}
+            </p>
+          )}
+          <form onSubmit={handleUpdateShopProfile} style={{ marginTop: 10 }}>
             <input
               type="text"
               placeholder={t("shopNamePlaceholder")}
               value={editShopName}
               onChange={(e) => setEditShopName(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
             <input
               type="text"
               placeholder={t("ownerNamePlaceholder")}
               value={editOwnerName}
               onChange={(e) => setEditOwnerName(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
             <select
               value={editShopType}
               onChange={(e) => setEditShopType(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             >
               {SHOP_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -952,39 +980,46 @@ export default function DashboardPage() {
               value={editYearsInBusiness}
               onChange={(e) => setEditYearsInBusiness(e.target.value)}
               min="0"
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
             <input
               type="text"
               placeholder={t("streetPlaceholder")}
               value={editStreet}
               onChange={(e) => setEditStreet(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
             <input
               type="text"
               placeholder={t("cityPlaceholder")}
               value={editCity}
               onChange={(e) => setEditCity(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
             <input
               type="text"
               placeholder={t("statePlaceholder")}
               value={editState}
               onChange={(e) => setEditState(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
             <input
               type="text"
               placeholder={t("pincodePlaceholder")}
               value={editPincode}
               onChange={(e) => setEditPincode(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
+              disabled={!shopFieldsUnlocked}
+              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box", opacity: shopFieldsUnlocked ? 1 : 0.6 }}
             />
-            <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
-              {profileSubmitting ? t("updating") : t("updateShopInfo")}
-            </button>
+            {shopFieldsUnlocked && (
+              <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
+                {profileSubmitting ? t("updating") : t("updateShopInfo")}
+              </button>
+            )}
             {profileError && <p style={{ color: "red", fontSize: 13 }}>{profileError}</p>}
             {profileSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{profileSuccess}</p>}
           </form>
