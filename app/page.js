@@ -1,10 +1,12 @@
 "use client";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function HomePage() {
+  const { t } = useLanguage();
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto", textAlign: "center" }}>
       <h1 style={{ marginTop: 60 }}>📒 Digital Halkhata</h1>
-      <p style={{ color: "#999", marginBottom: 40 }}>বাকির হিসাব রাখুন, বিশ্বাসের সাথে</p>
+      <p style={{ color: "#999", marginBottom: 40 }}>{t("homeTagline")}</p>
 
       <a
         href="/login"
@@ -18,7 +20,7 @@ export default function HomePage() {
           marginBottom: 16,
         }}
       >
-        🏪 দোকানদার হিসেবে যোগ দিন
+        🏪 {t("joinAsShopkeeper")}
       </a>
 
       <a
@@ -32,7 +34,7 @@ export default function HomePage() {
           textDecoration: "none",
         }}
       >
-        👤 কাস্টমার হিসেবে যোগ দিন
+        👤 {t("joinAsCustomer")}
       </a>
     </div>
   );
