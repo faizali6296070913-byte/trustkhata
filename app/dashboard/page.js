@@ -604,6 +604,20 @@ export default function DashboardPage() {
     return { newCreditsToday, paidToday, customerCount: customersToday.size };
   }, [transactions]);
 
+  // ---- নতুন: "আজকের কাজ" — দোকানদারকে সাথে সাথেই বলে দেওয়া যে আজ কী করা দরকার ----
+  const todaysTasks = useMemo(() => {
+    const overdueCount = transactions.filter(
+      (t) => t.status === "approved" && isOverdue(t)
+    ).length;
+    const settlementPendingCount = settlementRequests.filter(
+      (r) => r.status === "pending"
+    ).length;
+    const awaitingConfirmCount = transactions.filter(
+      (t) => t.status === "awaiting_pin_confirmation"
+    ).length;
+    return { overdueCount, settlementPendingCount, awaitingConfirmCount };
+  }, [transactions, settlementRequests]);
+
   // ---- সাম্প্রতিক Activity ফিড — কী কী ঘটেছে তার সংক্ষিপ্ত তালিকা ----
   const activityFeed = useMemo(() => {
     const events = [];
@@ -758,6 +772,42 @@ export default function DashboardPage() {
         </div>
       </div>
       <p style={{ fontSize: 13, color: "#999", margin: "6px 0 0 0" }}>✅ {t("statusLabel")}: {shopData.status}</p>
+
+      {/* ---- নতুন: "আজকের কাজ" — লগইন করার সাথেই কী করা দরকার তা স্পষ্টভাবে দেখানো ---- */}
+      <div
+        style={{
+          marginTop: 14,
+          background: "#1e2a1e",
+          border: "1px solid #2d4a2d",
+          padding: 12,
+          borderRadius: 8,
+        }}
+      >
+        <h3 style={{ margin: "0 0 8px 0", fontSize: 15 }}>📋 {t("todaysTasksTitle")}</h3>
+        {todaysTasks.overdueCount === 0 &&
+        todaysTasks.settlementPendingCount === 0 &&
+        todaysTasks.awaitingConfirmCount === 0 ? (
+          <p style={{ margin: 0, fontSize: 13, color: "#4ade80" }}>✅ {t("noUrgentTasks")}</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {todaysTasks.overdueCount > 0 && (
+              <p style={{ margin: 0, fontSize: 13, color: "#f97316" }}>
+                ⚠️ {todaysTasks.overdueCount} {t("overdueFollowUp")}
+              </p>
+            )}
+            {todaysTasks.settlementPendingCount > 0 && (
+              <p style={{ margin: 0, fontSize: 13, color: "#fbbf24" }}>
+                💰 {todaysTasks.settlementPendingCount} {t("settlementAwaitingPin")}
+              </p>
+            )}
+            {todaysTasks.awaitingConfirmCount > 0 && (
+              <p style={{ margin: 0, fontSize: 13, color: "#60a5fa" }}>
+                🔑 {todaysTasks.awaitingConfirmCount} {t("awaitingCustomerConfirm")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ---- নতুন: আজকের সারসংক্ষেপ ---- */}
       <div
