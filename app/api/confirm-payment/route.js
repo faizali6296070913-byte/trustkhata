@@ -22,7 +22,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "এই এন্ট্রি খুঁজে পাওয়া যায়নি।" }, { status: 404 });
     }
 
-    // ---- নতুন: মালিকানা যাচাই — যে লগইন করেছে সে-ই কি আসলে এই লেনদেনের কাস্টমার ----
+    // ---- মালিকানা যাচাই — যে লগইন করেছে সে-ই কি আসলে এই লেনদেনের কাস্টমার ----
     const emailPrefix = (user.email || "").split("@")[0];
     const requesterDigits = normalizePhone(user.phoneNumber || emailPrefix || "");
     if (!requesterDigits || requesterDigits !== txn.customerId) {
@@ -36,12 +36,16 @@ export async function POST(req) {
       );
     }
 
+    // ---- নতুন: PIN এর hash এখন আলাদা সুরক্ষিত কালেকশন থেকে আনা হচ্ছে ----
+    const pinSecretId = `txn_${txnId}`;
+    const pinSecret = (await getDocument("pinSecrets", pinSecretId)) || {};
+
     // ---- ধাপ ৩: PIN যাচাই (লক/মেয়াদ/attempt সবকিছুসহ) ----
-    const result = verifyPin(pin, txn);
+    const result = verifyPin(pin, pinSecret);
 
     if (!result.valid) {
       if (result.updateFields) {
-        await patchDocument("transactions", txnId, result.updateFields);
+        await patchDocument("pinSecrets", pinSecretId, result.updateFields);
       }
       return NextResponse.json({ error: result.reason }, { status: 400 });
     }
@@ -53,8 +57,10 @@ export async function POST(req) {
     const remaining = txn.amount - newAmountPaid;
     const isFullyPaid = remaining <= 0;
 
+    // ---- PIN secret ডকুমেন্ট থেকে সব গোপন ফিল্ড মুছে ফেলা (একই PIN দ্বিতীয়বার কাজ করবে না) ----
+    await patchDocument("pinSecrets", pinSecretId, result.updateFields);
+
     const updates = {
-      ...result.updateFields, // PIN ফিল্ড মুছে ফেলা
       amountPaid: newAmountPaid,
       payments: [
         ...(txn.payments || []),

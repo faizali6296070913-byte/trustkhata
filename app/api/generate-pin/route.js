@@ -23,13 +23,11 @@ export async function POST(req) {
     if (txn.shopId !== uid) {
       return NextResponse.json({ error: "এই এন্ট্রিতে আপনার অনুমতি নেই।" }, { status: 403 });
     }
-    // ---- বদলানো হয়েছে: "approved" এর পাশাপাশি "awaiting_pin_confirmation" ও অনুমতি দেওয়া হলো,
-    // যাতে দোকানদারের পেজ রিফ্রেশ হয়ে গেলে নতুন PIN আবার তৈরি করতে পারেন (আগের PIN স্বয়ংক্রিয়ভাবে বাতিল হয়ে যাবে) ----
     if (!["approved", "awaiting_pin_confirmation"].includes(txn.status)) {
       return NextResponse.json({ error: "এই এন্ট্রি এখন PIN জেনারেট করার অবস্থায় নেই।" }, { status: 400 });
     }
 
-    // ---- ধাপ ৩: টাকার পরিমাণ যাচাই (amountPaid এখনো বদলায়নি, তাই remaining নির্ভরযোগ্য) ----
+    // ---- ধাপ ৩: টাকার পরিমাণ যাচাই ----
     const remaining = Number(txn.amount) - Number(txn.amountPaid || 0);
     const entered = Number(paymentAmount);
     if (!entered || entered <= 0 || entered > remaining) {
@@ -39,10 +37,17 @@ export async function POST(req) {
       );
     }
 
-    // ---- ধাপ ৪: PIN তৈরি করে hash সেভ করা (আসল PIN ডাটাবেসে থাকবে না) ----
+    // ---- ধাপ ৪: PIN তৈরি ----
     const pin = generatePinCode();
+
+    // ---- নতুন: PIN এর hash এখন আলাদা "pinSecrets" কালেকশনে সংরক্ষিত হয়, যেটা ক্লায়েন্ট
+    // (dashboard/customer-dashboard) কখনো পড়তে পারবে না — শুধু সার্ভার/Admin থেকেই অ্যাক্সেসযোগ্য।
+    // এটা transaction ডকুমেন্টের ভেতরে রাখলে, dashboard যখন transaction লোড করে,
+    // hash-টাও (দেখা না গেলেও) ব্রাউজারে চলে আসত — যেটা ৪-সংখ্যার PIN এর ক্ষেত্রে ঝুঁকিপূর্ণ ----
+    await patchDocument("pinSecrets", `txn_${txnId}`, createPinFields(pin));
+
+    // ---- transaction ডকুমেন্টে শুধু প্রয়োজনীয় তথ্য (PIN ছাড়া) ----
     await patchDocument("transactions", txnId, {
-      ...createPinFields(pin),
       pendingPaymentAmount: entered,
       status: "awaiting_pin_confirmation",
     });

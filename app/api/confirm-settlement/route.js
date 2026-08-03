@@ -22,7 +22,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "এই রিকোয়েস্ট খুঁজে পাওয়া যায়নি।" }, { status: 404 });
     }
 
-    // ---- নতুন: মালিকানা যাচাই — যে লগইন করেছে সে-ই কি আসলে এই রিকোয়েস্টের কাস্টমার ----
+    // ---- মালিকানা যাচাই ----
     const emailPrefix = (user.email || "").split("@")[0];
     const requesterDigits = normalizePhone(user.phoneNumber || emailPrefix || "");
     if (!requesterDigits || requesterDigits !== settleReq.customerId) {
@@ -36,12 +36,16 @@ export async function POST(req) {
       );
     }
 
+    // ---- নতুন: PIN এর hash আলাদা সুরক্ষিত কালেকশন থেকে আনা হচ্ছে ----
+    const pinSecretId = `settle_${requestId}`;
+    const pinSecret = (await getDocument("pinSecrets", pinSecretId)) || {};
+
     // ---- ধাপ ৩: PIN যাচাই ----
-    const result = verifyPin(pin, settleReq);
+    const result = verifyPin(pin, pinSecret);
 
     if (!result.valid) {
       if (result.updateFields) {
-        await patchDocument("settlementRequests", requestId, result.updateFields);
+        await patchDocument("pinSecrets", pinSecretId, result.updateFields);
       }
       return NextResponse.json({ error: result.reason }, { status: 400 });
     }
@@ -55,14 +59,14 @@ export async function POST(req) {
         settleReq.customerPhone
       );
     } catch (allocErr) {
-      // ---- FIFO ব্যর্থ হলে PIN ফিল্ড মুছে দাও, যাতে ভুল অবস্থায় আটকে না থাকে ----
-      await patchDocument("settlementRequests", requestId, result.updateFields);
+      // ---- FIFO ব্যর্থ হলে PIN secret ফিল্ড মুছে দাও, যাতে ভুল অবস্থায় আটকে না থাকে ----
+      await patchDocument("pinSecrets", pinSecretId, result.updateFields);
       return NextResponse.json({ error: allocErr.message || "সমস্যা হয়েছে।" }, { status: 400 });
     }
 
-    // ---- ধাপ ৫: request কে "completed" করা ও PIN ফিল্ড মুছে ফেলা ----
+    // ---- ধাপ ৫: PIN secret ফিল্ড মুছে ফেলা ও request কে "completed" করা ----
+    await patchDocument("pinSecrets", pinSecretId, result.updateFields);
     await patchDocument("settlementRequests", requestId, {
-      ...result.updateFields,
       status: "completed",
     });
 

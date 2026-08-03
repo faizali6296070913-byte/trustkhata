@@ -23,16 +23,15 @@ export async function POST(req) {
     if (settleReq.shopId !== uid) {
       return NextResponse.json({ error: "এই রিকোয়েস্টে আপনার অনুমতি নেই।" }, { status: 403 });
     }
-    // ---- বদলানো হয়েছে: "pending" এর পাশাপাশি "awaiting_pin" ও অনুমতি দেওয়া হলো,
-    // যাতে পেজ রিফ্রেশ হয়ে গেলে দোকানদার নতুন PIN আবার তৈরি করতে পারেন ----
     if (!["pending", "awaiting_pin"].includes(settleReq.status)) {
       return NextResponse.json({ error: "এই রিকোয়েস্ট এখন PIN জেনারেট করার অবস্থায় নেই।" }, { status: 400 });
     }
 
-    // ---- ধাপ ৩: PIN তৈরি করে hash সেভ করা ----
+    // ---- ধাপ ৩: PIN তৈরি — hash আলাদা সুরক্ষিত কালেকশনে ----
     const pin = generatePinCode();
+    await patchDocument("pinSecrets", `settle_${requestId}`, createPinFields(pin));
+
     await patchDocument("settlementRequests", requestId, {
-      ...createPinFields(pin),
       status: "awaiting_pin",
     });
 
