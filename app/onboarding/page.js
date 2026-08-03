@@ -4,6 +4,7 @@ import { auth, db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
 import { useLanguage } from "@/lib/LanguageContext";
+import { translateShopType } from "@/lib/translations";
 
 const SHOP_TYPES = [
   "মুদি দোকান",
@@ -17,7 +18,7 @@ const SHOP_TYPES = [
 ];
 
 export default function OnboardingPage() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [shopName, setShopName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [street, setStreet] = useState("");
@@ -101,7 +102,7 @@ export default function OnboardingPage() {
         <select value={shopType} onChange={(e) => setShopType(e.target.value)} style={inputStyle}>
           {SHOP_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type}
+              {translateShopType(type, lang)}
             </option>
           ))}
         </select>

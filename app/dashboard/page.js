@@ -25,6 +25,7 @@ import { normalizePhone } from "@/lib/phone";
 import { getFriendlyAuthError } from "@/lib/authErrors";
 import { isOverdue, getOverdueDays, checkAndApplyOverduePenalty } from "@/lib/overdue";
 import { useLanguage } from "@/lib/LanguageContext";
+import { translateShopType } from "@/lib/translations";
 
 const SHOP_TYPES = [
   "মুদি দোকান",
@@ -37,21 +38,37 @@ const SHOP_TYPES = [
   "অন্যান্য",
 ];
 
-// ---- নতুন: এরর মেসেজ আরও স্পষ্ট ও কার্যকরী করার জন্য ----
-function getFriendlyErrorMessage(err) {
-  if (!err) return "একটা সমস্যা হয়েছে, আবার চেষ্টা করুন।";
+// ---- বদলানো হয়েছে: এখন lang প্যারামিটার নিয়ে দুই ভাষাতেই সঠিক এরর মেসেজ দেয় ----
+const ERROR_MESSAGES = {
+  bn: {
+    default: "একটা সমস্যা হয়েছে, আবার চেষ্টা করুন।",
+    network: "📶 ইন্টারনেট সংযোগে সমস্যা মনে হচ্ছে — সংযোগ চেক করে আবার চেষ্টা করুন।",
+    permission: "🔒 এই কাজটি করার অনুমতি নেই — অ্যাকাউন্টে সমস্যা থাকলে লগ আউট করে আবার লগইন করুন।",
+    generic: "একটা সমস্যা হয়েছে, একটু পর আবার চেষ্টা করুন।",
+  },
+  en: {
+    default: "Something went wrong, please try again.",
+    network: "📶 There seems to be a connection issue — check your internet and try again.",
+    permission: "🔒 You don't have permission for this action — if there's an account issue, log out and log back in.",
+    generic: "Something went wrong, please try again in a moment.",
+  },
+};
+
+function getFriendlyErrorMessage(err, lang = "bn") {
+  const messages = ERROR_MESSAGES[lang] || ERROR_MESSAGES.bn;
+  if (!err) return messages.default;
   const msg = (err.message || "").toLowerCase();
   if (msg.includes("network") || msg.includes("fetch") || msg.includes("offline")) {
-    return "📶 ইন্টারনেট সংযোগে সমস্যা মনে হচ্ছে — সংযোগ চেক করে আবার চেষ্টা করুন।";
+    return messages.network;
   }
   if (msg.includes("permission")) {
-    return "🔒 এই কাজটি করার অনুমতি নেই — অ্যাকাউন্টে সমস্যা থাকলে লগ আউট করে আবার লগইন করুন।";
+    return messages.permission;
   }
-  return "একটা সমস্যা হয়েছে, একটু পর আবার চেষ্টা করুন।";
+  return messages.generic;
 }
 
 export default function DashboardPage() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [shopData, setShopData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uid, setUid] = useState(null);
@@ -274,7 +291,7 @@ export default function DashboardPage() {
     e.preventDefault();
     // ---- নতুন: নিরাপত্তা যাচাই — ব্লক করা কাস্টমারকে কোনোভাবেই রিকোয়েস্ট পাঠানো যাবে না ----
     if (isCustomerBlocked) {
-      alert("এই কাস্টমারকে Admin ব্লক করে রেখেছেন, নতুন রিকোয়েস্ট পাঠানো যাবে না।");
+      alert(t("blockedCustomerAlert"));
       return;
     }
     setSubmitting(true);
@@ -348,7 +365,7 @@ export default function DashboardPage() {
     } catch (err) {
       console.error(err);
       // ---- বাগ ফিক্স: আগে এরর শুধু console এ লগ হতো, ইউজার কিছুই দেখতে পেতেন না ----
-      setCreditRequestError(getFriendlyErrorMessage(err));
+      setCreditRequestError(getFriendlyErrorMessage(err, lang));
     }
     setSubmitting(false);
   };
@@ -436,7 +453,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error(err);
-      alert(getFriendlyErrorMessage(err));
+      alert(getFriendlyErrorMessage(err, lang));
     }
     setSettleAccepting((prev) => ({ ...prev, [req.id]: false }));
   };
@@ -449,7 +466,7 @@ export default function DashboardPage() {
     const entered = overrideAmount ?? (enteredRaw ? Number(enteredRaw) : remaining);
 
     if (!entered || entered <= 0) {
-      alert("সঠিক পরিমাণ লিখুন।");
+      alert(t("enterValidAmount"));
       return;
     }
     if (entered > remaining) {
@@ -473,7 +490,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error(err);
-      alert(getFriendlyErrorMessage(err));
+      alert(getFriendlyErrorMessage(err, lang));
     }
     setMarkingPaid((prev) => ({ ...prev, [txn.id]: false }));
   };
@@ -821,7 +838,7 @@ export default function DashboardPage() {
             >
               {SHOP_TYPES.map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {translateShopType(type, lang)}
                 </option>
               ))}
             </select>
