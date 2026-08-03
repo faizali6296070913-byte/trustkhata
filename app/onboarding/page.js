@@ -3,6 +3,7 @@ import { useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { EmailAuthProvider, linkWithCredential } from "firebase/auth";
+import { useLanguage } from "@/lib/LanguageContext";
 
 const SHOP_TYPES = [
   "মুদি দোকান",
@@ -16,6 +17,7 @@ const SHOP_TYPES = [
 ];
 
 export default function OnboardingPage() {
+  const { t } = useLanguage();
   const [shopName, setShopName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [street, setStreet] = useState("");
@@ -34,11 +36,11 @@ export default function OnboardingPage() {
     setError("");
 
     if (password.length < 6) {
-      setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+      setError(t("onboardPwTooShort"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("দুটো পাসওয়ার্ড মিলছে না।");
+      setError(t("onboardPwMismatch"));
       return;
     }
 
@@ -70,18 +72,18 @@ export default function OnboardingPage() {
       window.location.href = "/dashboard";
     } catch (err) {
       console.error(err);
-      setError("সেভ করা যায়নি, আবার চেষ্টা করুন।");
+      setError(t("onboardSaveFailed"));
       setSubmitting(false);
     }
   };
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>দোকানের তথ্য দিন</h2>
+      <h2>{t("enterShopInfoTitle")}</h2>
       <form onSubmit={handleSubmit}>
         <input
           type="text"
-          placeholder="দোকানের নাম"
+          placeholder={t("shopNamePlaceholder")}
           value={shopName}
           onChange={(e) => setShopName(e.target.value)}
           required
@@ -89,7 +91,7 @@ export default function OnboardingPage() {
         />
         <input
           type="text"
-          placeholder="মালিকের নাম"
+          placeholder={t("ownerNamePlaceholder")}
           value={ownerName}
           onChange={(e) => setOwnerName(e.target.value)}
           required
@@ -106,7 +108,7 @@ export default function OnboardingPage() {
 
         <input
           type="number"
-          placeholder="কতদিন ধরে ব্যবসা করছেন (বছর)"
+          placeholder={t("yearsInBusinessPlaceholder")}
           value={yearsInBusiness}
           onChange={(e) => setYearsInBusiness(e.target.value)}
           min="0"
@@ -115,7 +117,7 @@ export default function OnboardingPage() {
 
         <input
           type="text"
-          placeholder="রাস্তা/এলাকা"
+          placeholder={t("streetPlaceholder")}
           value={street}
           onChange={(e) => setStreet(e.target.value)}
           required
@@ -123,7 +125,7 @@ export default function OnboardingPage() {
         />
         <input
           type="text"
-          placeholder="শহর"
+          placeholder={t("cityPlaceholder")}
           value={city}
           onChange={(e) => setCity(e.target.value)}
           required
@@ -131,7 +133,7 @@ export default function OnboardingPage() {
         />
         <input
           type="text"
-          placeholder="রাজ্য"
+          placeholder={t("statePlaceholder")}
           value={stateVal}
           onChange={(e) => setStateVal(e.target.value)}
           required
@@ -139,7 +141,7 @@ export default function OnboardingPage() {
         />
         <input
           type="text"
-          placeholder="পিনকোড"
+          placeholder={t("pincodePlaceholder")}
           value={pincode}
           onChange={(e) => setPincode(e.target.value)}
           required
@@ -148,11 +150,11 @@ export default function OnboardingPage() {
 
         <hr style={{ margin: "16px 0", borderColor: "#333" }} />
         <p style={{ fontSize: 13, color: "#999", marginBottom: 8 }}>
-          একটা পাসওয়ার্ড সেট করুন — পরের বার OTP ছাড়াই লগইন করতে পারবেন।
+          {t("setPasswordNote")}
         </p>
         <input
           type="password"
-          placeholder="পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
+          placeholder={t("onboardPasswordPlaceholder")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
@@ -160,7 +162,7 @@ export default function OnboardingPage() {
         />
         <input
           type="password"
-          placeholder="পাসওয়ার্ড আবার লিখুন"
+          placeholder={t("onboardConfirmPasswordPlaceholder")}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
@@ -168,7 +170,7 @@ export default function OnboardingPage() {
         />
 
         <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
-          {submitting ? "সেভ হচ্ছে..." : "সেভ করুন"}
+          {submitting ? t("saving") : t("saveButton")}
         </button>
         {error && <p style={{ color: "red" }}>{error}</p>}
       </form>

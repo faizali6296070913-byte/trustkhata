@@ -3,8 +3,10 @@ import { useState } from "react";
 import { auth } from "@/lib/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { getFriendlyAuthError } from "@/lib/authErrors";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function CustomerForgotPasswordPage() {
+  const { t } = useLanguage();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -62,11 +64,11 @@ export default function CustomerForgotPasswordPage() {
     setError("");
 
     if (newPassword.length < 6) {
-      setError("পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে।");
+      setError(t("onboardPwTooShort"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("দুটো পাসওয়ার্ড মিলছে না।");
+      setError(t("onboardPwMismatch"));
       return;
     }
 
@@ -80,30 +82,30 @@ export default function CustomerForgotPasswordPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+        setError(data.error || t("genericError"));
         setSubmitting(false);
         return;
       }
       setStep("done");
     } catch (err) {
       console.error(err);
-      setError("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      setError(t("genericError"));
       setSubmitting(false);
     }
   };
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>পাসওয়ার্ড রিসেট করুন</h2>
+      <h2>{t("resetPasswordTitle")}</h2>
 
       {step === "phone" && (
         <form onSubmit={sendOtp}>
           <p style={{ fontSize: 13, color: "#999", marginBottom: 10 }}>
-            আপনার ফোন নাম্বার দিন, OTP দিয়ে যাচাই করার পর নতুন পাসওয়ার্ড সেট করতে পারবেন।
+            {t("resetPhoneInstruction")}
           </p>
           <input
             type="tel"
-            placeholder="ফোন নাম্বার (যেমন 9876543210)"
+            placeholder={t("phoneNumberPlaceholder")}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
@@ -115,7 +117,7 @@ export default function CustomerForgotPasswordPage() {
             disabled={sendingOtp}
             style={{ width: "100%", padding: 10, opacity: sendingOtp ? 0.7 : 1 }}
           >
-            {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
+            {sendingOtp ? `⏳ ${t("sending")}` : t("sendOtp")}
           </button>
         </form>
       )}
@@ -124,7 +126,7 @@ export default function CustomerForgotPasswordPage() {
         <form onSubmit={verifyOtp}>
           <input
             type="text"
-            placeholder="OTP কোড দিন"
+            placeholder={t("otpCodePlaceholder")}
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             required
@@ -136,7 +138,7 @@ export default function CustomerForgotPasswordPage() {
             disabled={verifyingOtp}
             style={{ width: "100%", padding: 10, opacity: verifyingOtp ? 0.7 : 1 }}
           >
-            {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
+            {verifyingOtp ? `⏳ ${t("verifying")}` : t("verifyButton")}
           </button>
         </form>
       )}
@@ -144,12 +146,12 @@ export default function CustomerForgotPasswordPage() {
       {step === "newPassword" && (
         <form onSubmit={handleSetNewPassword}>
           <p style={{ fontSize: 13, color: "green", marginBottom: 10 }}>
-            ✅ যাচাই সফল হয়েছে। এখন নতুন পাসওয়ার্ড দিন।
+            ✅ {t("verifySuccessNote")}
           </p>
           <div style={{ position: "relative", marginBottom: 10 }}>
             <input
               type={showNewPw ? "text" : "password"}
-              placeholder="নতুন পাসওয়ার্ড (অন্তত ৬ অক্ষর)"
+              placeholder={t("onboardPasswordPlaceholder")}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
@@ -166,7 +168,7 @@ export default function CustomerForgotPasswordPage() {
           </div>
           <input
             type={showNewPw ? "text" : "password"}
-            placeholder="নতুন পাসওয়ার্ড আবার লিখুন"
+            placeholder={t("onboardConfirmPasswordPlaceholder")}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
@@ -174,7 +176,7 @@ export default function CustomerForgotPasswordPage() {
             style={{ display: "block", width: "100%", marginBottom: 10, padding: 8 }}
           />
           <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
-            {submitting ? "সেভ হচ্ছে..." : "পাসওয়ার্ড বদলান"}
+            {submitting ? t("saving") : t("changePasswordButton")}
           </button>
         </form>
       )}
@@ -182,7 +184,7 @@ export default function CustomerForgotPasswordPage() {
       {step === "done" && (
         <div>
           <p style={{ color: "green", marginBottom: 16 }}>
-            ✅ আপনার পাসওয়ার্ড সফলভাবে বদলানো হয়েছে!
+            ✅ {t("passwordChangedSuccess")}
           </p>
           <a
             href="/customer-login"
@@ -195,7 +197,7 @@ export default function CustomerForgotPasswordPage() {
               textDecoration: "none",
             }}
           >
-            লগইন পেজে যান
+            {t("goToLoginPage")}
           </a>
         </div>
       )}

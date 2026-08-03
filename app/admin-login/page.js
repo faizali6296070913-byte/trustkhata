@@ -14,8 +14,10 @@ import {
   limit,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function AdminPage() {
+  const { t, lang } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminUid, setAdminUid] = useState(null);
@@ -97,7 +99,7 @@ export default function AdminPage() {
       writeLog("approve_shop", "shopkeeper", shop.id, shop.shopName);
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(t("genericError"));
     }
   };
 
@@ -111,12 +113,12 @@ export default function AdminPage() {
       writeLog("reject_shop", "shopkeeper", shop.id, shop.shopName);
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(t("genericError"));
     }
   };
 
   const handleSuspend = async (shop) => {
-    if (!confirm(`${shop.shopName || "এই দোকান"} সাসপেন্ড করতে চান?`)) return;
+    if (!confirm(`${shop.shopName || t("thisShop")} ${t("confirmSuspend")}`)) return;
     try {
       await updateDoc(doc(db, "shopkeepers", shop.id), {
         status: "suspended",
@@ -126,7 +128,7 @@ export default function AdminPage() {
       writeLog("suspend_shop", "shopkeeper", shop.id, shop.shopName);
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(t("genericError"));
     }
   };
 
@@ -140,31 +142,31 @@ export default function AdminPage() {
       writeLog("reactivate_shop", "shopkeeper", shop.id, shop.shopName);
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(t("genericError"));
     }
   };
 
   const handleMakeAdmin = async (shop) => {
-    if (!confirm(`${shop.ownerName || shop.phone} কে Admin বানাতে চান?`)) return;
+    if (!confirm(`${shop.ownerName || shop.phone} ${t("confirmMakeAdmin")}`)) return;
     try {
       await updateDoc(doc(db, "users", shop.id), {
         role: "admin",
       });
       writeLog("make_admin", "user", shop.id, shop.ownerName || shop.phone);
-      alert("Admin বানানো হয়েছে।");
+      alert(t("adminMadeSuccess"));
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(t("genericError"));
     }
   };
 
   const handleExportCSV = () => {
-    const rows = [["ধরন", "নাম", "ফোন", "স্ট্যাটাস/স্কোর", "ঠিকানা"]];
+    const rows = [[t("csvType"), t("csvName"), t("csvPhone"), t("csvStatusScore"), t("csvAddress")]];
     shopkeepers.forEach((s) => {
-      rows.push(["দোকান", s.shopName || "", s.phone || "", s.status || "", s.shopAddress || ""]);
+      rows.push([t("csvShop"), s.shopName || "", s.phone || "", s.status || "", s.shopAddress || ""]);
     });
     customers.forEach((c) => {
-      rows.push(["কাস্টমার", c.name || "", c.phone || "", c.trustScore ?? "", ""]);
+      rows.push([t("csvCustomer"), c.name || "", c.phone || "", c.trustScore ?? "", ""]);
     });
     const csvContent = rows
       .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
@@ -211,10 +213,10 @@ export default function AdminPage() {
     );
   });
 
-  if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
+  if (loading) return <p style={{ padding: 20 }}>{t("loading")}</p>;
 
   if (!isAdmin) {
-    return <p style={{ padding: 20, color: "red" }}>⛔ আপনার এই পেজে প্রবেশের অনুমতি নেই।</p>;
+    return <p style={{ padding: 20, color: "red" }}>⛔ {t("noPagePermission")}</p>;
   }
 
   const pendingShops = filteredShopkeepers.filter((s) => s.status === "pending_review");
@@ -228,72 +230,72 @@ export default function AdminPage() {
 
       <div style={{ display: "flex", gap: 12, margin: "20px 0", flexWrap: "wrap" }}>
         <div style={cardStyle}>
-          <p style={cardLabel}>মোট দোকান</p>
+          <p style={cardLabel}>{t("totalShopsAdmin")}</p>
           <p style={cardValue}>{shopkeepers.length}</p>
         </div>
         <div style={cardStyle}>
-          <p style={cardLabel}>মোট কাস্টমার</p>
+          <p style={cardLabel}>{t("totalCustomersAdmin")}</p>
           <p style={cardValue}>{customers.length}</p>
         </div>
         <div style={cardStyle}>
-          <p style={cardLabel}>বকেয়া (₹)</p>
+          <p style={cardLabel}>{t("outstandingAdmin")} (₹)</p>
           <p style={cardValue}>{stats.totalOutstanding}</p>
         </div>
         <div style={cardStyle}>
-          <p style={cardLabel}>পরিশোধিত (₹)</p>
+          <p style={cardLabel}>{t("paidLabel")} (₹)</p>
           <p style={cardValue}>{stats.totalPaid}</p>
         </div>
       </div>
 
       <button onClick={handleExportCSV} style={{ padding: 10, width: "100%", marginBottom: 20 }}>
-        📥 CSV রিপোর্ট ডাউনলোড করুন
+        📥 {t("downloadCsvReport")}
       </button>
 
       <input
         type="text"
-        placeholder="🔍 নাম বা ফোন নাম্বার দিয়ে খুঁজুন..."
+        placeholder={`🔍 ${t("searchByNameOrPhone")}`}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         style={{ display: "block", width: "100%", marginBottom: 20, padding: 10 }}
       />
 
-      <h3>⏳ পেন্ডিং অনুমোদন ({pendingShops.length})</h3>
-      {pendingShops.length === 0 && <p>কোনো পেন্ডিং দোকান নেই।</p>}
+      <h3>⏳ {t("pendingApproval")} ({pendingShops.length})</h3>
+      {pendingShops.length === 0 && <p>{t("noPendingShops")}</p>}
       {pendingShops.map((shop) => (
         <div key={shop.id} style={shopCardStyle}>
-          <p style={{ margin: 0, fontWeight: "bold" }}>{shop.shopName || "(নাম দেওয়া হয়নি)"}</p>
-          <p style={smallText}>মালিক: {shop.ownerName || "—"} | ফোন: {shop.phone}</p>
-          <p style={smallText}>ঠিকানা: {shop.shopAddress || "—"}</p>
+          <p style={{ margin: 0, fontWeight: "bold" }}>{shop.shopName || t("nameNotGiven")}</p>
+          <p style={smallText}>{t("ownerLabel")}: {shop.ownerName || "—"} | {t("phoneLabel")}: {shop.phone}</p>
+          <p style={smallText}>{t("addressLabel")}: {shop.shopAddress || "—"}</p>
           {shop.shopType && (
             <p style={smallText}>
-              ধরন: {shop.shopType} {shop.yearsInBusiness ? `| ${shop.yearsInBusiness} বছর ধরে ব্যবসা` : ""}
+              {t("typeLabel")}: {shop.shopType} {shop.yearsInBusiness ? `| ${shop.yearsInBusiness} ${t("yearsInBusinessSuffix")}` : ""}
             </p>
           )}
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <button onClick={() => handleApprove(shop)} style={{ ...btnStyle, background: "green" }}>
-              ✅ Approve
+              ✅ {t("approveButton")}
             </button>
             <button onClick={() => handleReject(shop)} style={{ ...btnStyle, background: "red" }}>
-              ❌ Reject
+              ❌ {t("rejectEdit")}
             </button>
           </div>
         </div>
       ))}
 
-      <h3 style={{ marginTop: 30 }}>✅ সক্রিয় দোকান ({activeShops.length})</h3>
+      <h3 style={{ marginTop: 30 }}>✅ {t("activeShops")} ({activeShops.length})</h3>
       {activeShops.map((shop) => (
         <div key={shop.id} style={shopCardStyle}>
           <p style={{ margin: 0, fontWeight: "bold" }}>{shop.shopName}</p>
-          <p style={smallText}>মালিক: {shop.ownerName || "—"} | ফোন: {shop.phone}</p>
+          <p style={smallText}>{t("ownerLabel")}: {shop.ownerName || "—"} | {t("phoneLabel")}: {shop.phone}</p>
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <button onClick={() => handleSuspend(shop)} style={{ ...btnStyle, background: "orange" }}>
-              ⛔ সাসপেন্ড
+              ⛔ {t("suspendButton")}
             </button>
             <button
               onClick={() => handleMakeAdmin(shop)}
               style={{ ...btnStyle, background: "#1a1a1a", border: "1px solid #555" }}
             >
-              👑 Admin বানান
+              👑 {t("makeAdminButton")}
             </button>
           </div>
         </div>
@@ -301,37 +303,37 @@ export default function AdminPage() {
 
       {suspendedShops.length > 0 && (
         <>
-          <h3 style={{ marginTop: 30 }}>⛔ সাসপেন্ডেড দোকান ({suspendedShops.length})</h3>
+          <h3 style={{ marginTop: 30 }}>⛔ {t("suspendedShops")} ({suspendedShops.length})</h3>
           {suspendedShops.map((shop) => (
             <div key={shop.id} style={shopCardStyle}>
               <p style={{ margin: 0, fontWeight: "bold" }}>{shop.shopName}</p>
-              <p style={smallText}>ফোন: {shop.phone}</p>
+              <p style={smallText}>{t("phoneLabel")}: {shop.phone}</p>
               <button
                 onClick={() => handleReactivate(shop)}
                 style={{ ...btnStyle, background: "green", marginTop: 8 }}
               >
-                ✅ পুনরায় সক্রিয় করুন
+                ✅ {t("reactivateButton")}
               </button>
             </div>
           ))}
         </>
       )}
 
-      <h3 style={{ marginTop: 30 }}>❌ Rejected ({rejectedShops.length})</h3>
+      <h3 style={{ marginTop: 30 }}>❌ {t("statusRejected")} ({rejectedShops.length})</h3>
       {rejectedShops.map((shop) => (
         <div key={shop.id} style={{ ...shopCardStyle, borderLeft: "4px solid red" }}>
           <p style={{ margin: 0 }}>{shop.shopName} — {shop.phone}</p>
         </div>
       ))}
 
-      <h3 style={{ marginTop: 30 }}>👤 কাস্টমার ({filteredCustomers.length})</h3>
+      <h3 style={{ marginTop: 30 }}>👤 {t("customersHeading")} ({filteredCustomers.length})</h3>
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 14 }}>
         <input
           type="checkbox"
           checked={showRedFlagOnly}
           onChange={(e) => setShowRedFlagOnly(e.target.checked)}
         />
-        শুধু 🚩 রেড-ফ্ল্যাগড কাস্টমার দেখান
+        {t("showRedFlagOnly")}
       </label>
       {filteredCustomers.slice(0, 50).map((c) => (
         <div
@@ -342,21 +344,21 @@ export default function AdminPage() {
           }}
         >
           <p style={{ margin: 0, fontWeight: "bold" }}>
-            {c.name || "(নাম নেই)"} {c.isRedFlagged && "🚩"}
+            {c.name || t("noNameGiven")} {c.isRedFlagged && "🚩"}
           </p>
           <p style={smallText}>
-            ফোন: {c.phone} | স্কোর: {c.trustScore ?? 50} | রিজেকশন: {c.rejectionCount ?? 0}
+            {t("phoneLabel")}: {c.phone} | {t("score")}: {c.trustScore ?? 50} | {t("rejectionsLabel")}: {c.rejectionCount ?? 0}
           </p>
         </div>
       ))}
       {filteredCustomers.length > 50 && (
         <p style={{ fontSize: 13, color: "#999" }}>
-          আরও {filteredCustomers.length - 50} জন আছে (সার্চ করে খুঁজুন)
+          {t("moreCustomersNote1")} {filteredCustomers.length - 50} {t("moreCustomersNote2")}
         </p>
       )}
 
-      <h3 style={{ marginTop: 30 }}>📋 সাম্প্রতিক অ্যাক্টিভিটি</h3>
-      {logs.length === 0 && <p style={{ fontSize: 13, color: "#999" }}>কোনো লগ নেই।</p>}
+      <h3 style={{ marginTop: 30 }}>📋 {t("recentActivityAdmin")}</h3>
+      {logs.length === 0 && <p style={{ fontSize: 13, color: "#999" }}>{t("noLogs")}</p>}
       {logs.map((log) => (
         <div
           key={log.id}
@@ -368,21 +370,23 @@ export default function AdminPage() {
             paddingBottom: 6,
           }}
         >
-          <strong>{actionLabel(log.action)}</strong> — {log.targetName || log.targetId}
-          {log.createdAt?.toDate && <span> · {log.createdAt.toDate().toLocaleString("bn-BD")}</span>}
+          <strong>{actionLabel(log.action, t)}</strong> — {log.targetName || log.targetId}
+          {log.createdAt?.toDate && (
+            <span> · {log.createdAt.toDate().toLocaleString(lang === "en" ? "en-IN" : "bn-BD")}</span>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
-function actionLabel(action) {
+function actionLabel(action, t) {
   const map = {
-    approve_shop: "✅ দোকান Approve",
-    reject_shop: "❌ দোকান Reject",
-    suspend_shop: "⛔ দোকান Suspend",
-    reactivate_shop: "✅ দোকান পুনরায় সক্রিয়",
-    make_admin: "👑 নতুন Admin বানানো হয়েছে",
+    approve_shop: `✅ ${t("logApproveShop")}`,
+    reject_shop: `❌ ${t("logRejectShop")}`,
+    suspend_shop: `⛔ ${t("logSuspendShop")}`,
+    reactivate_shop: `✅ ${t("logReactivateShop")}`,
+    make_admin: `👑 ${t("logMakeAdmin")}`,
   };
   return map[action] || action;
 }

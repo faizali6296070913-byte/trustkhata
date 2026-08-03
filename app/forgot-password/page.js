@@ -3,8 +3,10 @@ import { useState } from "react";
 import { auth } from "@/lib/firebase";
 import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { getFriendlyAuthError } from "@/lib/authErrors";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function ForgotPasswordPage() {
+  const { t } = useLanguage();
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -62,11 +64,11 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError("");
     if (newPassword.length < 6) {
-      setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+      setError(t("onboardPwTooShort"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("দুটো পাসওয়ার্ড মিলছে না।");
+      setError(t("onboardPwMismatch"));
       return;
     }
     setResetting(true);
@@ -79,14 +81,14 @@ export default function ForgotPasswordPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+        setError(data.error || t("genericError"));
         setResetting(false);
         return;
       }
       setSuccess(true);
     } catch (err) {
       console.error(err);
-      setError("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      setError(t("genericError"));
       setResetting(false);
     }
   };
@@ -94,9 +96,9 @@ export default function ForgotPasswordPage() {
   if (success) {
     return (
       <div style={{ padding: 20, maxWidth: 400, margin: "auto", textAlign: "center" }}>
-        <h2>✅ পাসওয়ার্ড পরিবর্তন হয়েছে</h2>
+        <h2>✅ {t("passwordChangedTitle")}</h2>
         <a href="/login" style={{ color: "#2563eb" }}>
-          লগইন পেজে যান
+          {t("goToLoginPage")}
         </a>
       </div>
     );
@@ -104,13 +106,13 @@ export default function ForgotPasswordPage() {
 
   return (
     <div style={{ padding: 20, maxWidth: 400, margin: "auto" }}>
-      <h2>পাসওয়ার্ড রিসেট করুন</h2>
+      <h2>{t("resetPasswordTitle")}</h2>
 
       {step === "phone" && (
         <form onSubmit={sendOtp}>
           <input
             type="tel"
-            placeholder="ফোন নাম্বার"
+            placeholder={t("phoneOnly")}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             required
@@ -122,7 +124,7 @@ export default function ForgotPasswordPage() {
             disabled={sendingOtp}
             style={{ width: "100%", padding: 10, opacity: sendingOtp ? 0.7 : 1 }}
           >
-            {sendingOtp ? "⏳ পাঠানো হচ্ছে..." : "OTP পাঠান"}
+            {sendingOtp ? `⏳ ${t("sending")}` : t("sendOtp")}
           </button>
         </form>
       )}
@@ -131,7 +133,7 @@ export default function ForgotPasswordPage() {
         <form onSubmit={verifyOtp}>
           <input
             type="text"
-            placeholder="OTP কোড দিন"
+            placeholder={t("otpCodePlaceholder")}
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
             required
@@ -143,7 +145,7 @@ export default function ForgotPasswordPage() {
             disabled={verifyingOtp}
             style={{ width: "100%", padding: 10, opacity: verifyingOtp ? 0.7 : 1 }}
           >
-            {verifyingOtp ? "⏳ যাচাই হচ্ছে..." : "যাচাই করুন"}
+            {verifyingOtp ? `⏳ ${t("verifying")}` : t("verifyButton")}
           </button>
         </form>
       )}
@@ -153,7 +155,7 @@ export default function ForgotPasswordPage() {
           <div style={{ position: "relative", marginBottom: 10 }}>
             <input
               type={showNewPw ? "text" : "password"}
-              placeholder="নতুন পাসওয়ার্ড"
+              placeholder={t("newPasswordSimple")}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
@@ -170,7 +172,7 @@ export default function ForgotPasswordPage() {
           </div>
           <input
             type={showNewPw ? "text" : "password"}
-            placeholder="আবার লিখুন"
+            placeholder={t("reenterPlaceholder")}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
@@ -182,7 +184,7 @@ export default function ForgotPasswordPage() {
             disabled={resetting}
             style={{ width: "100%", padding: 10, opacity: resetting ? 0.7 : 1 }}
           >
-            {resetting ? "⏳ পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড বদলান"}
+            {resetting ? `⏳ ${t("changing")}` : t("changePasswordButton")}
           </button>
         </form>
       )}
