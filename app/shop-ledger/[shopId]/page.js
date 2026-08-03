@@ -15,8 +15,10 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { normalizePhone } from "@/lib/phone";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function ShopLedgerPage() {
+  const { t, lang } = useLanguage();
   const params = useParams();
   const shopId = params.shopId;
 
@@ -84,7 +86,7 @@ export default function ShopLedgerPage() {
     setSuccessMsg("");
     const amt = Number(requestAmount);
     if (!amt || amt <= 0) {
-      alert("সঠিক পরিমাণ লিখুন।");
+      alert(t("enterValidAmount"));
       return;
     }
     setSubmitting(true);
@@ -100,26 +102,26 @@ export default function ShopLedgerPage() {
         status: "pending",
         createdAt: serverTimestamp(),
       });
-      setSuccessMsg("✅ রিকোয়েস্ট পাঠানো হয়েছে।");
+      setSuccessMsg(`✅ ${t("requestSentShort")}`);
       setRequestAmount("");
       setRequestNote("");
       setShowRequestForm(false);
     } catch (err) {
       console.error(err);
-      alert("সমস্যা হয়েছে, আবার চেষ্টা করুন।");
+      alert(t("genericError"));
     }
     setSubmitting(false);
   };
 
   const statusMap = {
-    pending_approval: { color: "#999", label: "⏳ অপেক্ষমান" },
-    approved: { color: "green", label: "🟢 Approved" },
-    rejected: { color: "red", label: "🔴 Rejected" },
-    awaiting_pin_confirmation: { color: "orange", label: "🔑 PIN অপেক্ষমান" },
-    paid: { color: "blue", label: "✅ সম্পূর্ণ পরিশোধিত" },
+    pending_approval: { color: "#999", label: `⏳ ${t("statusPending")}` },
+    approved: { color: "green", label: `🟢 ${t("statusApproved")}` },
+    rejected: { color: "red", label: `🔴 ${t("statusRejected")}` },
+    awaiting_pin_confirmation: { color: "orange", label: `🔑 ${t("statusAwaitingPin")}` },
+    paid: { color: "blue", label: `✅ ${t("statusPaid")}` },
   };
 
-  if (loading) return <p style={{ padding: 20 }}>লোড হচ্ছে...</p>;
+  if (loading) return <p style={{ padding: 20 }}>{t("loading")}</p>;
 
   const totalOutstanding = transactions
     .filter((t) => ["approved", "awaiting_pin_confirmation"].includes(t.status))
@@ -136,20 +138,20 @@ export default function ShopLedgerPage() {
   return (
     <div style={{ padding: 20, maxWidth: 450, margin: "auto" }}>
       <a href="/customer-dashboard" style={{ fontSize: 13, color: "#999" }}>
-        ← ড্যাশবোর্ডে ফিরুন
+        ← {t("backToDashboard")}
       </a>
-      <h2 style={{ marginTop: 10 }}>🏪 {shopInfo?.shopName || "দোকান"}</h2>
+      <h2 style={{ marginTop: 10 }}>🏪 {shopInfo?.shopName || t("shopFallback")}</h2>
       <p style={{ fontSize: 13, color: "#999" }}>{shopInfo?.shopAddress}</p>
 
       <div style={{ display: "flex", gap: 10, margin: "16px 0" }}>
         <div style={{ background: "#1a1a1a", padding: 12, flex: 1, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>বাকি</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("outstandingLabel")}</p>
           <p style={{ margin: 0, fontSize: 20, fontWeight: "bold", color: "orange" }}>
             ₹{totalOutstanding}
           </p>
         </div>
         <div style={{ background: "#1a1a1a", padding: 12, flex: 1, textAlign: "center" }}>
-          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>পরিশোধিত</p>
+          <p style={{ margin: 0, fontSize: 11, color: "#999" }}>{t("paidLabel")}</p>
           <p style={{ margin: 0, fontSize: 20, fontWeight: "bold", color: "green" }}>
             ₹{totalPaid}
           </p>
@@ -161,7 +163,7 @@ export default function ShopLedgerPage() {
           onClick={() => setShowRequestForm((v) => !v)}
           style={{ width: "100%", padding: 10, marginBottom: 10, background: "#2563eb", color: "white", border: "none" }}
         >
-          💸 আমি টাকা দিতে চাই
+          💸 {t("iWantToPay")}
         </button>
       )}
 
@@ -169,7 +171,7 @@ export default function ShopLedgerPage() {
         <form onSubmit={handleSendRequest} style={{ background: "#1a1a1a", padding: 12, marginBottom: 16 }}>
           <input
             type="number"
-            placeholder={`কত টাকা দিতে চান (সর্বোচ্চ ₹${totalOutstanding})`}
+            placeholder={`${t("howMuchWantToPay")} (${t("maxLabel")} ₹${totalOutstanding})`}
             value={requestAmount}
             onChange={(e) => setRequestAmount(e.target.value)}
             required
@@ -177,13 +179,13 @@ export default function ShopLedgerPage() {
           />
           <input
             type="text"
-            placeholder="নোট (ঐচ্ছিক)"
+            placeholder={t("noteOptionalPlaceholder")}
             value={requestNote}
             onChange={(e) => setRequestNote(e.target.value)}
             style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
           />
           <button type="submit" disabled={submitting} style={{ width: "100%", padding: 10 }}>
-            {submitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
+            {submitting ? t("sending") : t("sendRequest")}
           </button>
         </form>
       )}
@@ -194,30 +196,30 @@ export default function ShopLedgerPage() {
         <a
           href={buildWhatsAppLink(
             shopInfo.phone,
-            `আমি ₹${pendingRequests[0].amount} দিতে চাই।`
+            `${t("iWantToPayWhatsapp")} ₹${pendingRequests[0].amount}`
           )}
           target="_blank"
           rel="noopener noreferrer"
           style={{ display: "block", textAlign: "center", padding: 10, background: "#25D366", color: "white", marginBottom: 16, textDecoration: "none" }}
         >
-          📱 WhatsApp এ জানিয়ে দিন
+          📱 {t("informViaWhatsapp")}
         </a>
       )}
 
       {pendingRequests.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 15 }}>📋 পেন্ডিং রিকোয়েস্ট</h3>
+          <h3 style={{ fontSize: 15 }}>📋 {t("pendingRequestsTitle")}</h3>
           {pendingRequests.map((r) => (
             <div key={r.id} style={{ background: "#1a1a1a", padding: 10, marginBottom: 6, fontSize: 13 }}>
-              {r.initiatedBy === "customer" ? "আপনি বলেছেন" : "দোকানদার চেয়েছেন"}: ₹{r.amount}
+              {r.initiatedBy === "customer" ? t("youSaid") : t("shopRequested")}: ₹{r.amount}
               {r.note && ` — ${r.note}`}
             </div>
           ))}
         </div>
       )}
 
-      <h3>📅 লেনদেনের ইতিহাস (তারিখ অনুযায়ী)</h3>
-      {transactions.length === 0 && <p style={{ color: "#999" }}>কোনো লেনদেন নেই।</p>}
+      <h3>📅 {t("transactionHistoryTitle")}</h3>
+      {transactions.length === 0 && <p style={{ color: "#999" }}>{t("noTransactions")}</p>}
       {transactions.map((txn) => {
         const s = statusMap[txn.status] || statusMap.pending_approval;
         return (
@@ -227,7 +229,7 @@ export default function ShopLedgerPage() {
           >
             <p style={{ margin: 0, fontSize: 12, color: "#999" }}>
               {txn.createdAt?.toDate
-                ? txn.createdAt.toDate().toLocaleString("bn-BD", {
+                ? txn.createdAt.toDate().toLocaleString(lang === "en" ? "en-IN" : "bn-BD", {
                     day: "numeric",
                     month: "long",
                     year: "numeric",
@@ -241,7 +243,7 @@ export default function ShopLedgerPage() {
             </p>
             {(txn.amountPaid || 0) > 0 && txn.status !== "paid" && (
               <p style={{ margin: 0, fontSize: 12, color: "#4ade80" }}>
-                পরিশোধিত: ₹{txn.amountPaid} | বাকি: ₹{(txn.amount || 0) - (txn.amountPaid || 0)}
+                {t("paidLabel")}: ₹{txn.amountPaid} | {t("remainingLabel")}: ₹{(txn.amount || 0) - (txn.amountPaid || 0)}
               </p>
             )}
             <strong style={{ color: s.color }}>{s.label}</strong>
