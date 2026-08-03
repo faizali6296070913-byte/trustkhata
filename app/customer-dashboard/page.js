@@ -29,7 +29,7 @@ function getFriendlyErrorMessage(err) {
 }
 
 export default function CustomerDashboardPage() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [customerData, setCustomerData] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -56,6 +56,8 @@ export default function CustomerDashboardPage() {
   const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState("");
   const [profileError, setProfileError] = useState("");
+  // ---- নতুন: ভুল করে টাচ লেগে তথ্য বদলে না যায়, তাই ডিফল্টভাবে ফর্ম লক থাকবে — পেন্সিল আইকনে চাপলে খুলবে ----
+  const [profileFieldsUnlocked, setProfileFieldsUnlocked] = useState(false);
   // ---- নতুন: প্রথমে শুধু সাম্প্রতিক লেনদেন দেখানো, দ্রুত লোড হওয়ার জন্য ----
   const [showAllTxns, setShowAllTxns] = useState(false);
 
@@ -208,7 +210,8 @@ export default function CustomerDashboardPage() {
         altPhone: editAltPhone || null,
         occupation: editOccupation || null,
       });
-      setProfileSuccess("✅ প্রোফাইল আপডেট হয়েছে।");
+      setProfileSuccess(`✅ ${t("profileUpdatedSuccess")}`);
+      setProfileFieldsUnlocked(false); // ---- নতুন: সেভ হওয়ার পর আবার ফর্ম লক করে দেওয়া, নিরাপত্তার জন্য ----
     } catch (err) {
       console.error(err);
       setProfileError(t("profileUpdateFailed"));
@@ -558,60 +561,140 @@ export default function CustomerDashboardPage() {
       )}
       {showSettings && (
         <div style={{ background: "#1a1a1a", padding: 15, marginBottom: 20, marginTop: 12, borderRadius: 6 }}>
-          <h3 style={{ marginTop: 0 }}>✏️ {t("editProfileInfo")}</h3>
-          <form onSubmit={handleUpdateProfile}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>✏️ {t("editProfileInfo")}</h3>
+            {/* ---- নতুন: পেন্সিল আইকন — এতে না চাপলে ফর্ম এডিট করা যাবে না, ভুল করে টাচ লেগে তথ্য বদলাবে না ---- */}
+            <button
+              type="button"
+              onClick={() => setProfileFieldsUnlocked((v) => !v)}
+              style={{
+                padding: "6px 10px",
+                background: profileFieldsUnlocked ? "#2563eb" : "#333",
+                color: "white",
+                border: "1px solid #666",
+                borderRadius: 6,
+                fontSize: 13,
+              }}
+            >
+              {profileFieldsUnlocked ? `🔓 ${t("unlocked")}` : `✏️ ${t("tapToEdit")}`}
+            </button>
+          </div>
+          {!profileFieldsUnlocked && (
+            <p style={{ fontSize: 12, color: "#999", margin: "6px 0 0 0" }}>
+              🔒 {t("profileLockedHint")}
+            </p>
+          )}
+          <form onSubmit={handleUpdateProfile} style={{ marginTop: 10 }}>
             <input
               type="text"
               placeholder={t("fullNamePlaceholder")}
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 8,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
             <input
               type="text"
               placeholder={t("streetPlaceholder")}
               value={editStreet}
               onChange={(e) => setEditStreet(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 8,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
             <input
               type="text"
               placeholder={t("cityPlaceholder")}
               value={editCity}
               onChange={(e) => setEditCity(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 8,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
             <input
               type="text"
               placeholder={t("statePlaceholder")}
               value={editState}
               onChange={(e) => setEditState(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 8,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
             <input
               type="text"
               placeholder={t("pincodePlaceholder")}
               value={editPincode}
               onChange={(e) => setEditPincode(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 8,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
             <input
               type="tel"
               placeholder={t("altPhonePlaceholder")}
               value={editAltPhone}
               onChange={(e) => setEditAltPhone(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 8, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 8,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
             <input
               type="text"
               placeholder={t("occupationPlaceholder")}
               value={editOccupation}
               onChange={(e) => setEditOccupation(e.target.value)}
-              style={{ display: "block", width: "100%", marginBottom: 10, padding: 8, boxSizing: "border-box" }}
+              disabled={!profileFieldsUnlocked}
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 10,
+                padding: 8,
+                boxSizing: "border-box",
+                opacity: profileFieldsUnlocked ? 1 : 0.6,
+              }}
             />
-            <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
-              {profileSubmitting ? t("updating") : t("updateProfile")}
-            </button>
+            {profileFieldsUnlocked && (
+              <button type="submit" disabled={profileSubmitting} style={{ width: "100%", padding: 10 }}>
+                {profileSubmitting ? t("updating") : t("updateProfile")}
+              </button>
+            )}
             {profileError && <p style={{ color: "red", fontSize: 13 }}>{profileError}</p>}
             {profileSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{profileSuccess}</p>}
           </form>
@@ -671,6 +754,25 @@ export default function CustomerDashboardPage() {
             {pwChangeError && <p style={{ color: "red", fontSize: 13 }}>{pwChangeError}</p>}
             {pwChangeSuccess && <p style={{ color: "#4ade80", fontSize: 13 }}>{pwChangeSuccess}</p>}
           </form>
+
+          <hr style={{ margin: "16px 0", borderColor: "#333" }} />
+
+          {/* ---- নতুন: সেটিংস এর ভেতরেও Logout বাটন, উপরের 🚪 আইকনের পাশাপাশি ---- */}
+          <button
+            onClick={handleLogout}
+            style={{
+              display: "block",
+              margin: "0 auto",
+              padding: "10px 30px",
+              background: "#7f1d1d",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontWeight: "bold",
+            }}
+          >
+            🚪 {t("logout")}
+          </button>
         </div>
       )}
 
@@ -895,6 +997,20 @@ export default function CustomerDashboardPage() {
             }}
           >
             <p style={{ margin: 0 }}>🏪 {txn.shopName}</p>
+            {/* ---- নতুন: প্রতিটা লেনদেনের তারিখ ও সময় — সার্ভার নিজে থেকেই সেট করে (serverTimestamp),
+            কেউ এটা এডিট করতে পারে না, Firestore Rules এও এই ফিল্ড ক্লায়েন্ট থেকে বদলানো বন্ধ করা আছে ---- */}
+            <p style={{ margin: "2px 0 4px 0", fontSize: 12, color: "#999" }}>
+              🕐{" "}
+              {txn.createdAt?.toDate
+                ? txn.createdAt.toDate().toLocaleString(lang === "en" ? "en-IN" : "bn-BD", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : ""}
+            </p>
             {/* ---- বদলানো হয়েছে: পরিমাণ ও বিবরণ আলাদা লাইনে, স্পষ্ট লেবেল সহ দেখানো ---- */}
             <p style={{ margin: 0, fontSize: 18, fontWeight: "bold", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
               {t("amountLabel")}: ₹{txn.amount}
