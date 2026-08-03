@@ -618,6 +618,22 @@ export default function DashboardPage() {
     return { overdueCount, settlementPendingCount, awaitingConfirmCount };
   }, [transactions, settlementRequests]);
 
+  // ---- নতুন: মেয়াদ পার হওয়া কাস্টমারদের তালিকা (এক-ক্লিক WhatsApp রিমাইন্ডার পাঠানোর জন্য) ----
+  // ---- একই কাস্টমারের একাধিক বাকি থাকলে একসাথে যোগ করে একবারই দেখানো হয় ----
+  const overdueCustomers = useMemo(() => {
+    const map = {};
+    transactions.forEach((txn) => {
+      if (txn.status === "approved" && isOverdue(txn)) {
+        const remaining = (txn.amount || 0) - (txn.amountPaid || 0);
+        if (!map[txn.customerId]) {
+          map[txn.customerId] = { customerId: txn.customerId, customerPhone: txn.customerPhone, totalDue: 0 };
+        }
+        map[txn.customerId].totalDue += remaining;
+      }
+    });
+    return Object.values(map);
+  }, [transactions]);
+
   // ---- সাম্প্রতিক Activity ফিড — কী কী ঘটেছে তার সংক্ষিপ্ত তালিকা ----
   const activityFeed = useMemo(() => {
     const events = [];
@@ -791,9 +807,47 @@ export default function DashboardPage() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {todaysTasks.overdueCount > 0 && (
-              <p style={{ margin: 0, fontSize: 13, color: "#f97316" }}>
-                ⚠️ {todaysTasks.overdueCount} {t("overdueFollowUp")}
-              </p>
+              <div>
+                <p style={{ margin: "0 0 6px 0", fontSize: 13, color: "#f97316" }}>
+                  ⚠️ {todaysTasks.overdueCount} {t("overdueFollowUp")}
+                </p>
+                {overdueCustomers.map((c) => (
+                  <div
+                    key={c.customerId}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
+                      marginBottom: 4,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: "#ccc" }}>
+                      {c.customerPhone} — ₹{c.totalDue}
+                    </span>
+                    <a
+                      href={buildWhatsAppLink(
+                        c.customerPhone,
+                        `${t("reminderWhatsappMessage")} ₹${c.totalDue}`
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 12,
+                        padding: "4px 10px",
+                        background: "#25D366",
+                        color: "white",
+                        borderRadius: 4,
+                        textDecoration: "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      📱 {t("remindButton")}
+                    </a>
+                  </div>
+                ))}
+              </div>
             )}
             {todaysTasks.settlementPendingCount > 0 && (
               <p style={{ margin: 0, fontSize: 13, color: "#fbbf24" }}>
