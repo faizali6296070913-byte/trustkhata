@@ -7,7 +7,8 @@ import { normalizePhone } from "@/lib/phone";
 
 export async function POST(req) {
   try {
-    const { idToken, txnId, pin } = await req.json();
+    const { idToken, txnId, pin: rawPin } = await req.json();
+    const pin = (rawPin || "").trim();
 
     if (!idToken || !txnId || !pin) {
       return NextResponse.json({ error: "প্রয়োজনীয় তথ্য দেওয়া হয়নি।" }, { status: 400 });
